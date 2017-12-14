@@ -1,4 +1,4 @@
-/* Copyright  (C) 2010-2018 The RetroArch team
+/* Copyright  (C) 2010-2017 The RetroArch team
 *
 * ---------------------------------------------------------------------------------------
 * The following license statement only applies to this file (vfs_implementation.h).
@@ -48,7 +48,7 @@ int64_t retro_vfs_file_size_impl(libretro_vfs_implementation_file *stream);
 
 int64_t retro_vfs_file_tell_impl(libretro_vfs_implementation_file *stream);
 
-int64_t retro_vfs_file_seek_impl(libretro_vfs_implementation_file *stream, int64_t offset, int seek_position);
+int64_t retro_vfs_file_seek_impl(libretro_vfs_implementation_file *stream, int64_t offset, int whence);
 
 int64_t retro_vfs_file_read_impl(libretro_vfs_implementation_file *stream, void *s, uint64_t len);
 
@@ -56,7 +56,7 @@ int64_t retro_vfs_file_write_impl(libretro_vfs_implementation_file *stream, cons
 
 int retro_vfs_file_flush_impl(libretro_vfs_implementation_file *stream);
 
-int retro_vfs_file_remove_impl(const char *path);
+int retro_vfs_file_delete_impl(const char *path);
 
 int retro_vfs_file_rename_impl(const char *old_path, const char *new_path);
 

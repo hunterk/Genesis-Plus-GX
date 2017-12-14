@@ -1,4 +1,4 @@
-/* Copyright  (C) 2010-2018 The RetroArch team
+/* Copyright  (C) 2010-2017 The RetroArch team
 *
 * ---------------------------------------------------------------------------------------
 * The following license statement only applies to this file (file_stream_transforms.c).
@@ -28,43 +28,17 @@
 
 RFILE* rfopen(const char *path, const char *mode)
 {
-   RFILE          *output  = NULL;
-   unsigned int retro_mode = RETRO_VFS_FILE_ACCESS_READ;
-   bool position_to_end    = false;
-
+   unsigned int retro_mode = 0;
    if (strstr(mode, "r"))
-   {
-      retro_mode = RETRO_VFS_FILE_ACCESS_READ;
-      if (strstr(mode, "+"))
-      {
-         retro_mode = RETRO_VFS_FILE_ACCESS_READ_WRITE | 
-            RETRO_VFS_FILE_ACCESS_UPDATE_EXISTING;
-      }
-   }
-   else if (strstr(mode, "w"))
-   {
+      if (strstr(mode, "b"))
+         retro_mode = RETRO_VFS_FILE_ACCESS_READ;
+
+   if (strstr(mode, "w"))
       retro_mode = RETRO_VFS_FILE_ACCESS_WRITE;
-      if (strstr(mode, "+"))
-         retro_mode = RETRO_VFS_FILE_ACCESS_READ_WRITE;
-   }
-   else if (strstr(mode, "a"))
-   {
-      retro_mode = RETRO_VFS_FILE_ACCESS_WRITE | 
-         RETRO_VFS_FILE_ACCESS_UPDATE_EXISTING;
-      position_to_end = true;
-      if (strstr(mode, "+"))
-      {
-         retro_mode = RETRO_VFS_FILE_ACCESS_READ_WRITE | 
-            RETRO_VFS_FILE_ACCESS_UPDATE_EXISTING;
-      }
-   }
+   if (strstr(mode, "+"))
+      retro_mode = RETRO_VFS_FILE_ACCESS_READ_WRITE;
 
-   output = filestream_open(path, retro_mode,
-         RETRO_VFS_FILE_ACCESS_HINT_NONE);
-   if (output && position_to_end)
-      filestream_seek(output, 0, RETRO_VFS_SEEK_POSITION_END);
-
-   return output;
+   return filestream_open(path, retro_mode, -1);
 }
 
 int rfclose(RFILE* stream)
@@ -72,34 +46,20 @@ int rfclose(RFILE* stream)
    return filestream_close(stream);
 }
 
-int64_t rftell(RFILE* stream)
+long rftell(RFILE* stream)
 {
    return filestream_tell(stream);
 }
 
-int64_t rfseek(RFILE* stream, int64_t offset, int origin)
+int rfseek(RFILE* stream, long offset, int origin)
 {
-   int seek_position = -1;
-   switch (origin)
-   {
-      case SEEK_SET:
-         seek_position = RETRO_VFS_SEEK_POSITION_START;
-         break;
-      case SEEK_CUR:
-         seek_position = RETRO_VFS_SEEK_POSITION_CURRENT;
-         break;
-      case SEEK_END:
-         seek_position = RETRO_VFS_SEEK_POSITION_END;
-         break;
-   }
-
-   return filestream_seek(stream, offset, seek_position);
+   return filestream_seek(stream, offset, origin);
 }
 
-int64_t rfread(void* buffer,
-   size_t elem_size, size_t elem_count, RFILE* stream)
+size_t rfread(void* buffer,
+   size_t elementSize, size_t elementCount, RFILE* stream)
 {
-   return filestream_read(stream, buffer, elem_size * elem_count);
+   return filestream_read(stream, buffer, elementSize*elementCount);
 }
 
 char *rfgets(char *buffer, int maxCount, RFILE* stream)
@@ -112,10 +72,10 @@ int rfgetc(RFILE* stream)
 	return filestream_getc(stream);
 }
 
-int64_t rfwrite(void const* buffer,
-   size_t elem_size, size_t elem_count, RFILE* stream)
+size_t rfwrite(void const* buffer,
+   size_t elementSize, size_t elementCount, RFILE* stream)
 {
-   return filestream_write(stream, buffer, elem_size * elem_count);
+   return filestream_write(stream, buffer, elementSize*elementCount);
 }
 
 int rfputc(int character, RFILE * stream)
@@ -135,10 +95,10 @@ int rfprintf(RFILE * stream, const char * format, ...)
 
 int rferror(RFILE* stream)
 {
-   return filestream_error(stream);
+    return filestream_error(stream);
 }
 
 int rfeof(RFILE* stream)
 {
-   return filestream_eof(stream);
+    return filestream_eof(stream);
 }

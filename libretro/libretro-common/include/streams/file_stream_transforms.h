@@ -23,12 +23,14 @@
 #ifndef __LIBRETRO_SDK_FILE_STREAM_TRANSFORMS_H
 #define __LIBRETRO_SDK_FILE_STREAM_TRANSFORMS_H
 
-#include <stdint.h>
+#include <retro_common_api.h>
 #include <string.h>
 #include <retro_common_api.h>
 #include <streams/file_stream.h>
 
 RETRO_BEGIN_DECLS
+
+typedef struct RFILE RFILE;
 
 #define FILE RFILE
 
@@ -73,8 +75,8 @@ char *rfgets(char *buffer, int maxCount, RFILE* stream);
 
 int rfgetc(RFILE* stream);
 
-int64_t rfwrite(void const* buffer,
-   size_t elem_size, size_t elem_count, RFILE* stream);
+size_t rfwrite(void const* buffer,
+   size_t elementSize, size_t elementCount, RFILE* stream);
 
 int rfputc(int character, RFILE * stream);
 

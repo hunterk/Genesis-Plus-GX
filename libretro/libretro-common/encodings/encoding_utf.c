@@ -1,4 +1,4 @@
-/* Copyright  (C) 2010-2018 The RetroArch team
+/* Copyright  (C) 2010-2017 The RetroArch team
  *
  * ---------------------------------------------------------------------------------------
  * The following license statement only applies to this file (encoding_utf.c).
@@ -33,8 +33,6 @@
 
 #if defined(_WIN32) && !defined(_XBOX)
 #include <windows.h>
-#elif defined(_XBOX)
-#include <xtl.h>
 #endif
 
 static unsigned leading_ones(uint8_t c)

@@ -1,4 +1,4 @@
-/* Copyright  (C) 2010-2018 The RetroArch team
+/* Copyright  (C) 2010-2017 The RetroArch team
 *
 * ---------------------------------------------------------------------------------------
 * The following license statement only applies to this file (vfs_implementation.c).
@@ -24,7 +24,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/types.h>
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -75,11 +74,10 @@
 
 #endif
 
-#if defined(_WIN32) && !defined(_XBOX)
-#if !defined(_MSC_VER) || (defined(_MSC_VER) && _MSC_VER >= 1400)
-#define ATLEAST_VC2005
-#endif
-#endif
+#define MODE_STR_READ "r"
+#define MODE_STR_READ_UNBUF "rb"
+#define MODE_STR_WRITE_UNBUF "wb"
+#define MODE_STR_WRITE_PLUS "w+"
 
 #ifdef RARCH_INTERNAL
 #ifndef VFS_FRONTEND
@@ -90,6 +88,7 @@
 #include <vfs/vfs_implementation.h>
 #include <libretro.h>
 #include <memmap.h>
+#include <retro_miscellaneous.h>
 #include <encodings/utf.h>
 #include <compat/fopen_utf8.h>
 
@@ -120,24 +119,17 @@ int64_t retro_vfs_file_seek_internal(libretro_vfs_implementation_file *stream, i
       goto error;
 
    if ((stream->hints & RFILE_HINT_UNBUFFERED) == 0)
-/* VC2005 and up have a special 64-bit fseek */
-#ifdef ATLEAST_VC2005
-      return _fseeki64(stream->fp, offset, whence);
-#elif defined(__CELLOS_LV2__) || defined(_MSC_VER) && _MSC_VER <= 1310
       return fseek(stream->fp, (long)offset, whence);
-#else
-      return fseeko(stream->fp, (off_t)offset, whence);
-#endif
 
 #ifdef HAVE_MMAP
    /* Need to check stream->mapped because this function is
     * called in filestream_open() */
    if (stream->mapped && stream->hints & 
-         RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS)
+         RETRO_VFS_FILE_ACCESS_HINT_MEMORY_MAP)
    {
       /* fseek() returns error on under/overflow but 
        * allows cursor > EOF for
-       read-only file descriptors. */
+         read-only file descriptors. */
       switch (whence)
       {
          case SEEK_SET:
@@ -187,16 +179,9 @@ error:
 
 libretro_vfs_implementation_file *retro_vfs_file_open_impl(const char *path, unsigned mode, unsigned hints)
 {
-   int                                flags = 0;
-   const char                     *mode_str = NULL;
+   int            flags    = 0;
+   const char *mode_str    = NULL;
    libretro_vfs_implementation_file *stream = (libretro_vfs_implementation_file*)calloc(1, sizeof(*stream));
-
-#ifdef VFS_FRONTEND
-   const char                 *dumb_prefix  = "vfsonly://";
-
-   if (!memcmp(path, dumb_prefix, strlen(dumb_prefix)))
-      path += strlen(dumb_prefix);
-#endif
 
    if (!stream)
       return NULL;
@@ -207,66 +192,52 @@ libretro_vfs_implementation_file *retro_vfs_file_open_impl(const char *path, uns
    stream->orig_path       = strdup(path);
 
 #ifdef HAVE_MMAP
-   if (stream->hints & RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS && mode == RETRO_VFS_FILE_ACCESS_READ)
+   if (stream->hints & RETRO_VFS_FILE_ACCESS_HINT_MEMORY_MAP && mode == RETRO_VFS_FILE_ACCESS_READ)
       stream->hints |= RFILE_HINT_UNBUFFERED;
    else
 #endif
-      stream->hints &= ~RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS;
+      stream->hints &= ~RETRO_VFS_FILE_ACCESS_HINT_MEMORY_MAP;
 
    switch (mode)
    {
       case RETRO_VFS_FILE_ACCESS_READ:
-         mode_str = "rb";
-
+         if ((stream->hints & RFILE_HINT_UNBUFFERED) == 0)
+            mode_str = MODE_STR_READ_UNBUF;
+         /* No "else" here */
          flags    = O_RDONLY;
-#ifdef _WIN32
-         flags   |= O_BINARY;
-#endif
          break;
-
       case RETRO_VFS_FILE_ACCESS_WRITE:
-         mode_str = "wb";
-
-         flags    = O_WRONLY | O_CREAT | O_TRUNC;
+         if ((stream->hints & RFILE_HINT_UNBUFFERED) == 0)
+            mode_str = MODE_STR_WRITE_UNBUF;
+         else
+         {
+            flags    = O_WRONLY | O_CREAT | O_TRUNC;
 #ifndef _WIN32
-         flags   |= S_IRUSR | S_IWUSR;
-#else
-         flags   |= O_BINARY;
+            flags   |=  S_IRUSR | S_IWUSR;
 #endif
+         }
          break;
-
       case RETRO_VFS_FILE_ACCESS_READ_WRITE:
-         mode_str = "w+b";
-
-         flags    = O_RDWR | O_CREAT | O_TRUNC;
-#ifndef _WIN32
-         flags   |= S_IRUSR | S_IWUSR;
-#else
-         flags   |= O_BINARY;
+         if ((stream->hints & RFILE_HINT_UNBUFFERED) == 0)
+            mode_str = MODE_STR_WRITE_PLUS;
+         else
+         {
+            flags    = O_RDWR;
+#ifdef _WIN32
+            flags   |= O_BINARY;
 #endif
+         }
          break;
-
-      case RETRO_VFS_FILE_ACCESS_WRITE | RETRO_VFS_FILE_ACCESS_UPDATE_EXISTING:
-      case RETRO_VFS_FILE_ACCESS_READ_WRITE | RETRO_VFS_FILE_ACCESS_UPDATE_EXISTING:
-         mode_str = "r+b";
-
-         flags    = O_RDWR;
-#ifndef _WIN32
-         flags   |= S_IRUSR | S_IWUSR;
-#else
-         flags   |= O_BINARY;
-#endif
+         /* TODO/FIXME - implement */
+      case RETRO_VFS_FILE_ACCESS_UPDATE_EXISTING:
          break;
-         
-      default:
-         goto error;
    }
 
-   if ((stream->hints & RFILE_HINT_UNBUFFERED) == 0)
+   if ((stream->hints & RFILE_HINT_UNBUFFERED) == 0 && mode_str)
    {
-      FILE   *fp = (FILE*)fopen_utf8(path, mode_str);
+      stream->fp = fopen_utf8(path, mode_str);
 
-      if (!fp)
+      if (!stream->fp)
          goto error;
 
       /* Regarding setvbuf:
@@ -279,7 +250,6 @@ libretro_vfs_implementation_file *retro_vfs_file_open_impl(const char *path, uns
        * Since C89 does not support specifying a null buffer with a non-zero size, we create and track our own buffer for it.
        */
       /* TODO: this is only useful for a few platforms, find which and add ifdef */
-      stream->fp  = fp;
       stream->buf = (char*)calloc(1, 0x4000);
       setvbuf(stream->fp, stream->buf, _IOFBF, 0x4000);
    }
@@ -305,7 +275,7 @@ libretro_vfs_implementation_file *retro_vfs_file_open_impl(const char *path, uns
          goto error;
 
 #ifdef HAVE_MMAP
-      if (stream->hints & RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS)
+      if (stream->hints & RETRO_VFS_FILE_ACCESS_HINT_MEMORY_MAP)
       {
          stream->mappos  = 0;
          stream->mapped  = NULL;
@@ -320,7 +290,7 @@ libretro_vfs_implementation_file *retro_vfs_file_open_impl(const char *path, uns
                stream->mapsize, PROT_READ,  MAP_SHARED, stream->fd, 0);
 
          if (stream->mapped == MAP_FAILED)
-            stream->hints &= ~RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS;
+            stream->hints &= ~RETRO_VFS_FILE_ACCESS_HINT_MEMORY_MAP;
       }
 #endif
    }
@@ -352,7 +322,7 @@ int retro_vfs_file_close_impl(libretro_vfs_implementation_file *stream)
    else
    {
 #ifdef HAVE_MMAP
-      if (stream->hints & RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS)
+      if (stream->hints & RETRO_VFS_FILE_ACCESS_HINT_MEMORY_MAP)
          munmap(stream->mapped, stream->mapsize);
 #endif
    }
@@ -386,17 +356,12 @@ int64_t retro_vfs_file_tell_impl(libretro_vfs_implementation_file *stream)
       return -1;
 
    if ((stream->hints & RFILE_HINT_UNBUFFERED) == 0)
-/* VC2005 and up have a special 64-bit ftell */
-#ifdef ATLEAST_VC2005
-      return _ftelli64(stream->fp);
-#else
       return ftell(stream->fp);
-#endif
 
 #ifdef HAVE_MMAP
    /* Need to check stream->mapped because this function
     * is called in filestream_open() */
-   if (stream->mapped && stream->hints & RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS)
+   if (stream->mapped && stream->hints & RETRO_VFS_FILE_ACCESS_HINT_MEMORY_MAP)
       return stream->mappos;
 #endif
    if (lseek(stream->fd, 0, SEEK_CUR) < 0)
@@ -405,23 +370,9 @@ int64_t retro_vfs_file_tell_impl(libretro_vfs_implementation_file *stream)
    return 0;
 }
 
-int64_t retro_vfs_file_seek_impl(libretro_vfs_implementation_file *stream, int64_t offset, int seek_position)
+int64_t retro_vfs_file_seek_impl(libretro_vfs_implementation_file *stream, int64_t offset, int whence)
 {
-   int whence = -1;
-   switch (seek_position)
-   {
-      case RETRO_VFS_SEEK_POSITION_START:
-         whence = SEEK_SET;
-         break;
-      case RETRO_VFS_SEEK_POSITION_CURRENT:
-         whence = SEEK_CUR;
-         break;
-      case RETRO_VFS_SEEK_POSITION_END:
-         whence = SEEK_END;
-         break;
-   }
-
-   return retro_vfs_file_seek_internal(stream, offset, whence);
+	return retro_vfs_file_seek_internal(stream, offset, whence);
 }
 
 int64_t retro_vfs_file_read_impl(libretro_vfs_implementation_file *stream, void *s, uint64_t len)
@@ -430,10 +381,10 @@ int64_t retro_vfs_file_read_impl(libretro_vfs_implementation_file *stream, void 
       goto error;
 
    if ((stream->hints & RFILE_HINT_UNBUFFERED) == 0)
-      return fread(s, 1, (size_t)len, stream->fp);
+      return fread(s, 1, len, stream->fp);
 
 #ifdef HAVE_MMAP
-   if (stream->hints & RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS)
+   if (stream->hints & RETRO_VFS_FILE_ACCESS_HINT_MEMORY_MAP)
    {
       if (stream->mappos > stream->mapsize)
          goto error;
@@ -448,7 +399,7 @@ int64_t retro_vfs_file_read_impl(libretro_vfs_implementation_file *stream, void 
    }
 #endif
 
-   return read(stream->fd, s, (size_t)len);
+   return read(stream->fd, s, len);
 
 error:
    return -1;
@@ -460,13 +411,13 @@ int64_t retro_vfs_file_write_impl(libretro_vfs_implementation_file *stream, cons
       goto error;
 
    if ((stream->hints & RFILE_HINT_UNBUFFERED) == 0)
-      return fwrite(s, 1, (size_t)len, stream->fp);
+      return fwrite(s, 1, len, stream->fp);
 
 #ifdef HAVE_MMAP
-   if (stream->hints & RETRO_VFS_FILE_ACCESS_HINT_FREQUENT_ACCESS)
+   if (stream->hints & RETRO_VFS_FILE_ACCESS_HINT_MEMORY_MAP)
       goto error;
 #endif
-   return write(stream->fd, s, (size_t)len);
+   return write(stream->fd, s, len);
 
 error:
    return -1;
@@ -476,16 +427,16 @@ int retro_vfs_file_flush_impl(libretro_vfs_implementation_file *stream)
 {
    if (!stream)
       return -1;
-   return fflush(stream->fp)==0 ? 0 : -1;
+   return fflush(stream->fp);
 }
 
-int retro_vfs_file_remove_impl(const char *path)
+int retro_vfs_file_delete_impl(const char *path)
 {
    char *path_local    = NULL;
    wchar_t *path_wide  = NULL;
 
    if (!path || !*path)
-      return -1;
+      return false;
 
    (void)path_local;
    (void)path_wide;
@@ -500,7 +451,7 @@ int retro_vfs_file_remove_impl(const char *path)
       free(path_local);
 
       if (ret == 0)
-         return 0;
+         return true;
    }
 #else
    path_wide = utf8_to_utf16_string_alloc(path);
@@ -511,14 +462,14 @@ int retro_vfs_file_remove_impl(const char *path)
       free(path_wide);
 
       if (ret == 0)
-         return 0;
+         return true;
    }
 #endif
 #else
    if (remove(path) == 0)
-      return 0;
+      return true;
 #endif
-   return -1;
+   return false;
 }
 
 int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
@@ -548,7 +499,7 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
          int ret = rename(old_path_local, new_path_local);
          free(old_path_local);
          free(new_path_local);
-         return ret==0 ? 0 : -1;
+         return ret;
       }
 
       free(old_path_local);
@@ -567,7 +518,7 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
          int ret = _wrename(old_path_wide, new_path_wide);
          free(old_path_wide);
          free(new_path_wide);
-         return ret==0 ? 0 : -1;
+         return ret;
       }
 
       free(old_path_wide);
@@ -576,10 +527,10 @@ int retro_vfs_file_rename_impl(const char *old_path, const char *new_path)
    if (new_path_wide)
       free(new_path_wide);
 #endif
-   return -1;
 #else
-   return rename(old_path, new_path)==0 ? 0 : -1;
+   return rename(old_path, new_path);
 #endif
+   return -1;
 }
 
 const char *retro_vfs_file_get_path_impl(libretro_vfs_implementation_file *stream)

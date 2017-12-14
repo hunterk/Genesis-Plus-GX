@@ -323,7 +323,7 @@ int load_archive(char *filename, unsigned char *buffer, int maxsize, char *exten
   }
 
   /* Open file */
-  fd = filestream_open(filename, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+  RFILE *fd = filestream_open(filename, RETRO_VFS_FILE_ACCESS_READ, 0);
 
   if (!fd)
   {
@@ -979,13 +979,13 @@ static void bram_load(void)
     switch (region_code)
     {
        case REGION_JAPAN_NTSC:
-          fp = filestream_open(CD_BRAM_JP, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+          fp = filestream_open(CD_BRAM_JP, RETRO_VFS_FILE_ACCESS_READ, 0);
           break;
        case REGION_EUROPE:
-          fp = filestream_open(CD_BRAM_EU, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+          fp = filestream_open(CD_BRAM_EU, RETRO_VFS_FILE_ACCESS_READ, 0);
           break;
        case REGION_USA:
-          fp = filestream_open(CD_BRAM_US, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+          fp = filestream_open(CD_BRAM_US, RETRO_VFS_FILE_ACCESS_READ, 0);
           break;
        default:
           return;
@@ -1025,7 +1025,7 @@ static void bram_load(void)
     /* automatically load cartridge backup RAM (if enabled) */
     if (scd.cartridge.id)
     {
-      fp = filestream_open(CART_BRAM, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+      fp = filestream_open(CART_BRAM, RETRO_VFS_FILE_ACCESS_READ, 0);
       if (fp != NULL)
       {
         int filesize = scd.cartridge.mask + 1;
@@ -1081,13 +1081,13 @@ static void bram_save(void)
         switch (region_code)
         {
           case REGION_JAPAN_NTSC:
-            fp = filestream_open(CD_BRAM_JP, RETRO_VFS_FILE_ACCESS_WRITE, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+            fp = filestream_open(CD_BRAM_JP, RETRO_VFS_FILE_ACCESS_WRITE, 0);
             break;
           case REGION_EUROPE:
-            fp = filestream_open(CD_BRAM_EU, RETRO_VFS_FILE_ACCESS_WRITE, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+            fp = filestream_open(CD_BRAM_EU, RETRO_VFS_FILE_ACCESS_WRITE, 0);
             break;
           case REGION_USA:
-            fp = filestream_open(CD_BRAM_US, RETRO_VFS_FILE_ACCESS_WRITE, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+            fp = filestream_open(CD_BRAM_US, RETRO_VFS_FILE_ACCESS_WRITE, 0);
             break;
           default:
             return;
@@ -1110,7 +1110,7 @@ static void bram_save(void)
       /* check if it is correctly formatted before saving */
       if (!memcmp(scd.cartridge.area + scd.cartridge.mask + 1 - 0x20, brm_format + 0x20, 0x20))
       {
-        fp = filestream_open(CART_BRAM, RETRO_VFS_FILE_ACCESS_WRITE, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+        fp = filestream_open(CART_BRAM, RETRO_VFS_FILE_ACCESS_WRITE, 0);
         if (fp != NULL)
         {
           int filesize = scd.cartridge.mask + 1;
@@ -3171,7 +3171,8 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 bool retro_load_game(const struct retro_game_info *info)
 {
    int i;
-   char *dir       = NULL;
+   struct retro_vfs_interface_info vfs_iface_info;
+   const char *dir = NULL;
 #if defined(_WIN32)
    char slash      = '\\';
 #else
@@ -3269,6 +3270,11 @@ bool retro_load_game(const struct retro_game_info *info)
          log_cb(RETRO_LOG_INFO, "[genplus]: Defaulting save directory to %s.\n", g_rom_dir);
       save_dir = g_rom_dir;
    }
+
+#if 0
+   if (!environ_cb(RETRO_ENVIRONMENT_GET_VFS_INTERFACE, &vfs_iface_info))
+	   filestream_vfs_init(&vfs_iface_info);
+#endif
 
    snprintf(GG_ROM, sizeof(GG_ROM), "%s%cggenie.bin", dir, slash);
    snprintf(AR_ROM, sizeof(AR_ROM), "%s%careplay.bin", dir, slash);
