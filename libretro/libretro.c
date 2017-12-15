@@ -73,8 +73,6 @@
 #include <libretro.h>
 #include <streams/file_stream.h>
 
-#include "libretro_core_options.h"
-
 #include "shared.h"
 #include "md_ntsc.h"
 #include "sms_ntsc.h"
