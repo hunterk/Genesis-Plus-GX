@@ -2701,6 +2701,44 @@ unsigned retro_api_version(void) { return RETRO_API_VERSION; }
 void retro_set_environment(retro_environment_t cb)
 {
    struct retro_vfs_interface_info vfs_iface_info;
+   static const struct retro_variable vars[] = {
+      { "genesis_plus_gx_system_hw", "System hardware; auto|sg-1000|sg-1000 II|mark-III|master system|master system II|game gear|mega drive / genesis" },
+      { "genesis_plus_gx_region_detect", "System region; auto|ntsc-u|pal|ntsc-j" },
+      { "genesis_plus_gx_force_dtack", "System lockups; enabled|disabled" },
+      { "genesis_plus_gx_bios", "System bootrom; disabled|enabled" },
+      { "genesis_plus_gx_bram", "CD System BRAM; per bios|per game" },
+      { "genesis_plus_gx_addr_error", "68k address error; enabled|disabled" },
+      { "genesis_plus_gx_lock_on", "Cartridge lock-on; disabled|game genie|action replay (pro)|sonic & knuckles" },
+      { "genesis_plus_gx_ym2413", "Master System FM; auto|disabled|enabled" },
+      { "genesis_plus_gx_dac_bits", "YM2612 DAC quantization; disabled|enabled" },
+      #ifdef HAVE_YM3438_CORE
+      { "genesis_plus_gx_ym3438", "YM2612/YM3438 core; mame|nuked (ym2612)|nuked (asic ym3438)|nuked (discrete ym3438)" },
+      #endif
+
+      { "genesis_plus_gx_sound_output", "Sound output; stereo|mono" },
+      { "genesis_plus_gx_audio_filter", "Audio filter; disabled|low-pass" },
+      { "genesis_plus_gx_lowpass_range", "Low-pass filter %; 60|65|70|75|80|85|90|95|5|10|15|20|25|30|35|40|45|50|55"},
+      
+      #if HAVE_EQ     
+      { "genesis_plus_gx_audio_eq_low",  "EQ Low;  100|0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95" },
+      { "genesis_plus_gx_audio_eq_mid",  "EQ Mid;  100|0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95" },
+      { "genesis_plus_gx_audio_eq_high", "EQ High; 100|0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95" },
+      #endif
+      
+      { "genesis_plus_gx_blargg_ntsc_filter", "Blargg NTSC filter; disabled|monochrome|composite|svideo|rgb" },
+      { "genesis_plus_gx_lcd_filter", "LCD Ghosting filter; disabled|enabled" },
+      { "genesis_plus_gx_overscan", "Borders; disabled|top/bottom|left/right|full" },
+      { "genesis_plus_gx_gg_extra", "Game Gear extended screen; disabled|enabled" },
+      { "genesis_plus_gx_aspect_ratio", "Core-provided aspect ratio; auto|NTSC PAR|PAL PAR" },
+      { "genesis_plus_gx_render", "Interlaced mode 2 output; single field|double field" },
+      { "genesis_plus_gx_gun_cursor", "Show Lightgun crosshair; disabled|enabled" },
+      { "genesis_plus_gx_invert_mouse", "Invert Mouse Y-axis; disabled|enabled" },
+#ifdef HAVE_OVERCLOCK
+      { "genesis_plus_gx_overclock", "CPU speed; 100%|125%|150%|175%|200%" },
+#endif
+      { "genesis_plus_gx_no_sprite_limit", "Remove per-line sprite limit; disabled|enabled" },
+      { NULL, NULL },
+   };
 
    static const struct retro_controller_description port_1[] = {
       { "Joypad Auto", RETRO_DEVICE_JOYPAD },
@@ -2891,7 +2929,6 @@ void retro_set_environment(retro_environment_t cb)
 
    cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports);
    cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, (void*)desc);
-   cb(RETRO_ENVIRONMENT_SET_CONTENT_INFO_OVERRIDE, (void*)content_overrides);
 
    vfs_iface_info.required_interface_version = 1;
    vfs_iface_info.iface                      = NULL;
@@ -3169,7 +3206,6 @@ void retro_cheat_set(unsigned index, bool enabled, const char *code)
 bool retro_load_game(const struct retro_game_info *info)
 {
    int i;
-   struct retro_vfs_interface_info vfs_iface_info;
    const char *dir = NULL;
 #if defined(_WIN32)
    char slash      = '\\';
@@ -3268,11 +3304,6 @@ bool retro_load_game(const struct retro_game_info *info)
          log_cb(RETRO_LOG_INFO, "[genplus]: Defaulting save directory to %s.\n", g_rom_dir);
       save_dir = g_rom_dir;
    }
-
-   vfs_iface_info.required_interface_version = 1;
-   vfs_iface_info.iface                      = NULL;
-   if (environ_cb(RETRO_ENVIRONMENT_GET_VFS_INTERFACE, &vfs_iface_info))
-	   filestream_vfs_init(&vfs_iface_info);
 
    snprintf(GG_ROM, sizeof(GG_ROM), "%s%cggenie.bin", dir, slash);
    snprintf(AR_ROM, sizeof(AR_ROM), "%s%careplay.bin", dir, slash);
