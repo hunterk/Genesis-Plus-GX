@@ -237,14 +237,15 @@ void filestream_rewind(RFILE *stream)
    stream->error_flag = false;
 }
 
-int64_t filestream_read(RFILE *stream, void *s, int64_t len)
+ssize_t filestream_read(RFILE *stream, void *s, int64_t len)
 {
    int64_t output;
 
    if (filestream_read_cb != NULL)
       output = filestream_read_cb(stream->hfile, s, len);
    else
-      output = retro_vfs_file_read_impl((libretro_vfs_implementation_file*)stream->hfile, s, len);
+      output = retro_vfs_file_read_impl(
+            (libretro_vfs_implementation_file*)stream->hfile, s, len);
 
    if (output == vfs_error_return_value)
       stream->error_flag = true;
@@ -291,7 +292,7 @@ const char *filestream_get_path(RFILE *stream)
    return retro_vfs_file_get_path_impl((libretro_vfs_implementation_file*)stream->hfile);
 }
 
-int filestream_delete(const char *path)
+ssize_t filestream_write(RFILE *stream, const void *s, int64_t len)
 {
    int64_t output;
 
@@ -390,7 +391,7 @@ int64_t filestream_read_file(const char *path, void **buf, int64_t *len)
    if (content_buf_size < 0)
       goto error;
 
-   content_buf = malloc(content_buf_size + 1);
+   content_buf = malloc((size_t)(content_buf_size + 1));
 
    if (!content_buf)
       goto error;

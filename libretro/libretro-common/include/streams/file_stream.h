@@ -62,7 +62,11 @@ RFILE *filestream_open(const char *path, unsigned mode, unsigned hints);
 
 int64_t filestream_write(RFILE *stream, const void *data, int64_t len);
 
-int64_t filestream_tell(RFILE *stream);
+ssize_t filestream_read(RFILE *stream, void *data, int64_t len);
+
+ssize_t filestream_write(RFILE *stream, const void *data, int64_t len);
+
+ssize_t filestream_tell(RFILE *stream);
 
 void filestream_rewind(RFILE *stream);
 
