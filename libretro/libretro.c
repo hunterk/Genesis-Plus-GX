@@ -295,30 +295,7 @@ void error(char * fmt, ...)
 
 int load_archive(char *filename, unsigned char *buffer, int maxsize, char *extension)
 {
-  int64_t left = 0;
-  int64_t size = 0;
-  RFILE *fd;
-
-  /* Get filename extension */
-  if (extension)
-  {
-    memcpy(extension, &filename[strlen(filename) - 3], 3);
-    extension[3] = 0;
-  }
-
-  /* Check if this was called to load ROM file from the frontend (not BOOT ROM or Lock-On ROM files from the core) */
-  if (maxsize >= 0x800000)
-  {
-    /* Check if loaded game is already in memory */
-    if ((g_rom_data != NULL) && (g_rom_size > 0))
-    {
-      size = g_rom_size;
-      if (size > maxsize)
-        size = maxsize;
-      memcpy(buffer, g_rom_data, size);
-      return size;
-    }
-  }
+  int32_t size, left;
 
   /* Open file */
   RFILE *fd = filestream_open(filename, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
@@ -346,7 +323,7 @@ int load_archive(char *filename, unsigned char *buffer, int maxsize, char *exten
 
   /* Get file size */
   filestream_seek(fd, 0, SEEK_END);
-  size = filestream_tell(fd);
+  size = (int32_t)filestream_tell(fd);
 
   /* size limit */
   if (size > MAXROMSIZE)
