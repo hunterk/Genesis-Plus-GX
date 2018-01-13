@@ -3522,14 +3522,24 @@ size_t retro_get_memory_size(unsigned id)
          if (!is_running)
             return 0x10000;
 
-         /* otherwise, we assume this is for saving and we return the size of SRAM data that has actually been modified */
-         /* this is obviously not %100 safe since the frontend could still be trying to load SRAM while emulation is running */
-         /* a better solution would be that the frontend itself checks if data has been modified before writing it to a file */
-         for (i=0xffff; i>=0; i--)
-            if (sram.sram[i] != 0xff)
-               return (i+1);
-
-         /* return 0 if SRAM is not modified */
+        /* otherwise, we assume this is for saving and we need to check if SRAM data has been modified */
+        /* this is obviously not %100 safe since the frontend could still be trying to load SRAM while emulation is running */
+        /* a better solution would be that the frontend itself checks if data has been modified before writing it to a file */
+        for (i=0xffff; i>=0; i--)
+        {
+          if (sram.sram[i] != 0xff)
+          {
+            /* only save modified size */
+            return (i+1);
+          }
+        }
+      }
+      case RETRO_MEMORY_SYSTEM_RAM:
+         if (system_hw == SYSTEM_SMS || system_hw == SYSTEM_SMS2)
+            return 0x02000;
+         else
+            return 0x10000;
+      default:
          return 0;
       }
 
