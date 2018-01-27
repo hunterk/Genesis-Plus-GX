@@ -852,10 +852,6 @@ static void draw_cursor(int16_t x, int16_t y, uint16_t color)
    int y_start = y - 3;
    int y_end = y + 3;
 
-   /* off-screen? */
-   if ( x < 0 && y < 0 )
-      return;
-
    /* framebuffer limits */
    if (x_start < -bitmap.viewport.x) x_start = -bitmap.viewport.x;
    if (x_end >= (bitmap.viewport.w + bitmap.viewport.x)) x_end = bitmap.viewport.w + bitmap.viewport.x - 1;
