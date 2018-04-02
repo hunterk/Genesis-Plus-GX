@@ -3096,8 +3096,26 @@ void retro_set_controller_port_device(unsigned port, unsigned device)
 
 size_t retro_serialize_size(void) { return STATE_SIZE; }
 
+extern int8 fast_savestates;
+
+bool get_fast_savestates(void)
+{
+   int result = -1;
+   bool okay = false;
+   okay = environ_cb(RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE, &result);
+   if (okay)
+   {
+      return 0 != (result & 4);
+   }
+   else
+   {
+      return 0;
+   }
+}
+
 bool retro_serialize(void *data, size_t size)
 { 
+   fast_savestates = get_fast_savestates();
    if (size != STATE_SIZE)
       return FALSE;
 
@@ -3108,6 +3126,7 @@ bool retro_serialize(void *data, size_t size)
 
 bool retro_unserialize(const void *data, size_t size)
 {
+   fast_savestates = get_fast_savestates();
    if (size != STATE_SIZE)
       return FALSE;
 
@@ -3618,8 +3637,12 @@ void retro_reset(void)
    gen_reset(0);
 }
 
+extern int8 audio_hard_disable;
+
 void retro_run(void) 
 {
+   bool okay = false;
+   int result = -1;
    int do_skip = 0;
    bool updated = false;
    int vwoffset = 0;
@@ -3632,53 +3655,20 @@ void retro_run(void)
       update_overclock();
 #endif
 
-   environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated);
-   if (updated)
+   okay = environ_cb(RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE, &result);
+   if (okay)
    {
-      check_variables(false);
-      if (restart_eq)
-      {
-         audio_set_equalizer();
-         restart_eq = false;
-      }
+      bool audioEnabled = 0 != (result & 2);
+      bool videoEnabled = 0 != (result & 1);
+      bool hardDisableAudio = 0 != (result & 8);
+      do_skip = !videoEnabled;
+      audio_hard_disable = hardDisableAudio;
    }
-
-  /* Check whether current frame should
-  * be skipped */
-  if ((frameskip_type > 0) &&
-      retro_audio_buff_active &&
-      !do_skip)
-  {
-    switch (frameskip_type)
-    {
-      case 1: /* auto */
-        do_skip = retro_audio_buff_underrun ? 1 : 0;
-        break;
-      case 2: /* manual */
-        do_skip = (retro_audio_buff_occupancy < frameskip_threshold) ? 1 : 0;
-        break;
-      default:
-        do_skip = 0;
-        break;
-    }
-
-    if (!do_skip || (frameskip_counter >= FRAMESKIP_MAX))
-    {
-      do_skip           = 0;
-      frameskip_counter = 0;
-    }
-    else
-      frameskip_counter++;
-  }
-
-  /* If frameskip settings have changed, update
-  * frontend audio latency */
-  if (update_audio_latency)
-  {
-    environ_cb(RETRO_ENVIRONMENT_SET_MINIMUM_AUDIO_LATENCY,
-        &audio_latency);
-    update_audio_latency = false;
-  }
+   else
+   {
+      do_skip = false;
+      audio_hard_disable = false;
+   }
 
    if (system_hw == SYSTEM_MCD)
    {

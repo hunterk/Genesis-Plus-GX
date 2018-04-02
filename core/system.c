@@ -43,6 +43,8 @@
 #include "yx5200.h"
 #include "eq.h"
 
+extern int8 audio_hard_disable;
+
 /* Global variables */
 t_bitmap bitmap;
 t_snd snd;
@@ -200,10 +202,8 @@ void audio_shutdown(void)
 
 int audio_update(int16 *buffer)
 {
-  /* number of audio streams to mix with FM+PSG stream (none by default) */
-  int mixed_blips = 0;
-
-  /* run FM & PSG sound chips until end of frame */
+  if (audio_hard_disable) return 0;
+  /* run sound chips until end of frame */
   int size = sound_update(mcycles_vdp);
 
   /* Mega CD sound hardware enabled ? */
