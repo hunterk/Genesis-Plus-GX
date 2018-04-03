@@ -149,8 +149,6 @@
 
 #include "shared.h"
 
-extern int8 audio_hard_disable;
-
 /* envelope generator */
 #define ENV_BITS    10
 #define ENV_LEN      (1<<ENV_BITS)
@@ -2009,7 +2007,6 @@ void YM2612Update(int *buffer, int length)
 {
   int i;
   int lt,rt;
-  if (audio_hard_disable) return;
 
   /* refresh PG increments and EG rates if required */
   refresh_fc_eg_chan(&ym2612.CH[0]);

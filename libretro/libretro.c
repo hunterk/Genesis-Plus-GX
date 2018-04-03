@@ -3637,8 +3637,6 @@ void retro_reset(void)
    gen_reset(0);
 }
 
-extern int8 audio_hard_disable;
-
 void retro_run(void) 
 {
    bool okay = false;
@@ -3662,12 +3660,10 @@ void retro_run(void)
       bool videoEnabled = 0 != (result & 1);
       bool hardDisableAudio = 0 != (result & 8);
       do_skip = !videoEnabled;
-      audio_hard_disable = hardDisableAudio;
    }
    else
    {
       do_skip = false;
-      audio_hard_disable = false;
    }
 
    if (system_hw == SYSTEM_MCD)

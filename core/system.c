@@ -43,8 +43,6 @@
 #include "yx5200.h"
 #include "eq.h"
 
-extern int8 audio_hard_disable;
-
 /* Global variables */
 t_bitmap bitmap;
 t_snd snd;
@@ -205,10 +203,8 @@ int audio_update(int16 *buffer)
   /* run sound chips until end of frame */
   int size = sound_update(mcycles_vdp);
 
-  if (audio_hard_disable) return 0;
-
-  /* Mega CD sound hardware enabled ? */
-  if (snd.blips[1] && snd.blips[2])
+  /* Mega CD specific */
+  if (system_hw == SYSTEM_MCD)
   {
     /* sync PCM chip with other sound chips */
     pcm_update(size);
