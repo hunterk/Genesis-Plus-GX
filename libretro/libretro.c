@@ -3120,6 +3120,7 @@ bool retro_serialize(void *data, size_t size)
       return FALSE;
 
    state_save(data);
+   if (fast_savestates) save_sound_buffer();
 
    return TRUE;
 }
@@ -3132,6 +3133,8 @@ bool retro_unserialize(const void *data, size_t size)
 
    if (!state_load((uint8_t*)data))
       return FALSE;
+
+   if (fast_savestates) restore_sound_buffer();
 
 #ifdef HAVE_OVERCLOCK
    update_overclock();
@@ -3637,6 +3640,10 @@ void retro_reset(void)
    gen_reset(0);
 }
 
+extern int8 audio_hard_disable;
+
+extern void sound_update_fm_function_pointers(void);
+
 void retro_run(void) 
 {
    bool okay = false;
@@ -3653,6 +3660,17 @@ void retro_run(void)
       update_overclock();
 #endif
 
+   environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated);
+   if (updated)
+   {
+      check_variables();
+      if (restart_eq)
+      {
+         audio_set_equalizer();
+         restart_eq = false;
+      }
+   }
+
    okay = environ_cb(RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE, &result);
    if (okay)
    {
@@ -3660,10 +3678,16 @@ void retro_run(void)
       bool videoEnabled = 0 != (result & 1);
       bool hardDisableAudio = 0 != (result & 8);
       do_skip = !videoEnabled;
+      if (audio_hard_disable != hardDisableAudio)
+      {
+        audio_hard_disable = hardDisableAudio;
+        sound_update_fm_function_pointers();
+      }
    }
    else
    {
       do_skip = false;
+      audio_hard_disable = false;
    }
 
    if (system_hw == SYSTEM_MCD)
@@ -3719,24 +3743,7 @@ void retro_run(void)
       }
    }
 
-   if ((config.left_border != 0) && (reg[0] & 0x20) && (bitmap.viewport.x == 0) && ((system_hw == SYSTEM_MARKIII) || (system_hw & SYSTEM_SMS) || (system_hw == SYSTEM_PBC)))
-   {
-       bmdoffset = (16 + (config.ntsc ? 24 : 0));
-       if (config.left_border == 1)
-           vwoffset = (8 + (config.ntsc ? 12 : 0));
-       else
-           vwoffset = (16 + (config.ntsc ? 24 : 0));
-   }
-
-   if (!do_skip)
-   {
-        video_cb(bitmap.data + bmdoffset, vwidth - vwoffset, vheight, 720 * 2);	
-   }
-   else
-   {
-        video_cb(NULL, vwidth - vwoffset, vheight, 720 * 2);
-   }
-
+   video_cb(bitmap.data, vwidth, vheight, 720 * 2);
    audio_cb(soundbuffer, audio_update(soundbuffer));
 }
 

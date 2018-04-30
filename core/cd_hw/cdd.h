@@ -124,6 +124,7 @@ typedef struct
   chd_t chd;
 #endif
   int16 audio[2];
+  int audioSampleOffset;
 } cdd_t; 
 
 /* Function prototypes */

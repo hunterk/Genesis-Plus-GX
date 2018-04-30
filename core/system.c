@@ -43,6 +43,8 @@
 #include "yx5200.h"
 #include "eq.h"
 
+extern int8 audio_hard_disable;
+
 /* Global variables */
 t_bitmap bitmap;
 t_snd snd;
@@ -195,6 +197,8 @@ void audio_shutdown(void)
   {
     blip_delete(snd.blips[i]);
     snd.blips[i] = 0;
+    blip_delete_buffer_state(snd.blip_states[i]);
+    snd.blip_states[i] = 0;
   }
 }
 
@@ -231,14 +235,20 @@ int audio_update(int16 *buffer)
   size &= ALIGN_SND;
 #endif
 
-  /* check number of audio streams to mix with FM+PSG stream */
-  if (mixed_blips)
-  {
-    /* resample & mix all audio streams to output buffer */
-    blip_mix_samples(snd.blips[0], (mixed_blips > 1) ? &snd.blips[1] : &snd.blips[3], mixed_blips, buffer, size);
+    if (audio_hard_disable) return 0;
+
+    /* resample & mix FM/PSG, PCM & CD-DA streams to output buffer */
+    blip_mix_samples(snd.blips[0], snd.blips[1], snd.blips[2], buffer, size);
   }
   else
   {
+#ifdef ALIGN_SND
+    /* return an aligned number of samples if required */
+    size &= ALIGN_SND;
+#endif
+
+    if (audio_hard_disable) return 0;
+
     /* resample FM/PSG mixed stream to output buffer */
     blip_read_samples(snd.blips[0], buffer, size);
   }
