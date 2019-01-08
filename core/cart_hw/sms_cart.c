@@ -2,10 +2,7 @@
  *  Genesis Plus
  *  SG-1000, Master System & Game Gear cartridge hardware support
  *
- *  Copyright (C) 2007-2025  Eke-Eke (Genesis Plus GX)
- *
- *  Credits to Ben Sittler and Omar Cornut at smspower.org for Korean mappers
- *  reverse-engineering and description
+ *  Copyright (C) 2007-2019  Eke-Eke (Genesis Plus GX)
  *
  *  Redistribution and use of this code or any derivative works are permitted
  *  provided that the following conditions are met:
@@ -327,7 +324,6 @@ static const rominfo_t game_list[] =
   {0xFBE5CFBB, 1, 0, SYSTEM_LIGHTPHASER, MAPPER_SEGA, SYSTEM_SMS, REGION_USA}, /* Missile Defense 3D */
   {0xE79BB689, 1, 0, SYSTEM_LIGHTPHASER, MAPPER_SEGA, SYSTEM_SMS, REGION_USA}, /* Missile Defense 3D [BIOS] */
   {0x43DEF05D, 1, 0, SYSTEM_LIGHTPHASER, MAPPER_SEGA, SYSTEM_SMS, REGION_USA}, /* Missile Defense 3D [Proto] */
-  {0x56DCB2D4, 1, 0, SYSTEM_LIGHTPHASER, MAPPER_SEGA, SYSTEM_SMS, REGION_USA}, /* 3D Gunner [Proto] */
 
   /* games requiring Sega Light Phaser */
   {0x861B6E79, 0, 0, SYSTEM_LIGHTPHASER, MAPPER_SEGA, SYSTEM_SMS, REGION_USA}, /* Assault City [Light Phaser] */
