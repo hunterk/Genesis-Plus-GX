@@ -484,6 +484,15 @@ FUNCTABLE(Z80ed,ed);
 FUNCTABLE(Z80fd,fd);
 FUNCTABLE(Z80xycb,xycb);
 
+#ifndef BIG_SWITCH
+FUNCTABLE(Z80op,op);
+#endif
+FUNCTABLE(Z80cb,cb);
+FUNCTABLE(Z80dd,dd);
+FUNCTABLE(Z80ed,ed);
+FUNCTABLE(Z80fd,fd);
+FUNCTABLE(Z80xycb,xycb);
+
 /****************************************************************************/
 /* Burn an odd amount of cycles, that is instructions taking something    */
 /* different from 4 T-states per opcode (and R increment)          */
