@@ -12,7 +12,6 @@
 #include <string.h>
 #include <malloc.h>
 #include <sys/dir.h>
-#include <sys/stat.h>
 #include <sys/param.h>
 #include <unistd.h>
 #include <asndlib.h>
