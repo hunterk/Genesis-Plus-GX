@@ -2,7 +2,7 @@
  *  Genesis Plus
  *  Mega Drive cartridge hardware support
  *
- *  Copyright (C) 2007-2025  Eke-Eke (Genesis Plus GX)
+ *  Copyright (C) 2007-2019  Eke-Eke (Genesis Plus GX)
  *
  *  Many cartridge protections were initially documented by Haze
  *  (http://haze.mameworld.info/)
@@ -407,42 +407,22 @@ void md_cart_init(void)
   if (sram.on && !sram.custom)
   {
     /* SRAM is mapped by default unless it overlaps with ROM area (Phantasy Star 4, Beyond Oasis/Legend of Thor, World Series Baseball 9x, Duke Nukem 3D,...) */
-    if (sram.start >= cart.romsize)
+    if (sram.start >= size)
     {
-      /* except for Sonic the Hedgehog 3 (cartridge ROM mirrored in upper 2MB area at power on) */
-      if (strstr(rominfo.international,"SONIC THE HEDGEHOG 3") == NULL)
-      {
-        m68k.memory_map[sram.start >> 16].base    = sram.sram;
-        m68k.memory_map[sram.start >> 16].read8   = sram_read_byte;
-        m68k.memory_map[sram.start >> 16].read16  = sram_read_word;
-        m68k.memory_map[sram.start >> 16].write8  = sram_write_byte;
-        m68k.memory_map[sram.start >> 16].write16 = sram_write_word;
-        zbank_memory_map[sram.start >> 16].read   = sram_read_byte;
-        zbank_memory_map[sram.start >> 16].write  = sram_write_byte;
-      }
-
-      /* Barkley Shut Up and Jam 2 needs SRAM to be mapped in whole upper 2MB area */
-      if (strstr(rominfo.product,"T-119186") != NULL)
-      {
-        for (i=0x21; i<0x40; i++)
-        {
-          m68k.memory_map[i].base    = sram.sram;
-          m68k.memory_map[i].read8   = sram_read_byte;
-          m68k.memory_map[i].read16  = sram_read_word;
-          m68k.memory_map[i].write8  = sram_write_byte;
-          m68k.memory_map[i].write16 = sram_write_word;
-          zbank_memory_map[i].read   = sram_read_byte;
-          zbank_memory_map[i].write  = sram_write_byte;
-        }
-      }
+      m68k.memory_map[sram.start >> 16].base    = sram.sram;
+      m68k.memory_map[sram.start >> 16].read8   = sram_read_byte;
+      m68k.memory_map[sram.start >> 16].read16  = sram_read_word;
+      m68k.memory_map[sram.start >> 16].write8  = sram_write_byte;
+      m68k.memory_map[sram.start >> 16].write16 = sram_write_word;
+      zbank_memory_map[sram.start >> 16].read   = sram_read_byte;
+      zbank_memory_map[sram.start >> 16].write  = sram_write_byte;
     }
 
-    /* support for Triple Play 96 & Triple Play - Gold Edition mapping */
+    /* support for Triple Play 96 & Triple Play - Gold Edition (available ROM dumps include dumped SRAM data) */
     else if ((strstr(rominfo.product,"T-172026") != NULL) || (strstr(rominfo.product,"T-172116") != NULL))
     {
-      /* $000000-$1fffff: cartridge ROM (lower 2MB) */
-      /* $200000-$2fffff: SRAM (32KB mirrored) */
-      /* NB: existing 4MB ROM dumps include SRAM data at ROM offsets 0x200000-0x2fffff */ 
+      /* $000000-$1fffff and $300000-$3fffff: cartridge ROM (2MB + 1MB) */
+      /* $200000-$2fffff: SRAM (32 KB mirrored) */
       for (i=0x20; i<0x30; i++)
       {
         m68k.memory_map[i].base    = sram.sram;
@@ -452,16 +432,6 @@ void md_cart_init(void)
         m68k.memory_map[i].write16 = sram_write_word;
         zbank_memory_map[i].read   = sram_read_byte;
         zbank_memory_map[i].write  = sram_write_byte;
-      }
-
-      /* $300000-$3fffff: cartridge ROM (upper 1MB) */
-      /* NB: only real (3MB) Mask ROM dumps need ROM offsets 0x200000-0x2fffff to be remapped to this area */
-      if (READ_BYTE(cart.rom, 0x200000) != 0xFF)
-      {
-        for (i=0x30; i<0x40; i++)
-        {
-          m68k.memory_map[i].base = cart.rom + ((i - 0x10) << 16);
-        }
       }
     }
   }
