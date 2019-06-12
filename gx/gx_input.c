@@ -3,7 +3,7 @@
  *
  *  Genesis Plus GX input support
  *
- *  Copyright Eke-Eke (2007-2023)
+ *  Copyright Eke-Eke (2007-2019)
  *
  *  Redistribution and use of this code or any derivative works are permitted
  *  provided that the following conditions are met:
@@ -522,7 +522,7 @@ static int wpad_StickX(WPADData *data, u8 right)
     int min = js->min.x;
     int max = js->max.x;
     int center = js->center.x;
-
+ 
     /* some 3rd party controllers return invalid analog sticks calibration data */
     if ((min >= center) || (max <= center))
     {
@@ -580,7 +580,7 @@ static int wpad_StickY(WPADData *data, u8 right)
     int min = js->min.y;
     int max = js->max.y;
     int center = js->center.y;
-
+ 
     /* some 3rd party controllers return invalid analog sticks calibration data */
     if ((min >= center) || (max <= center))
     {
