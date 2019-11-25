@@ -921,26 +921,9 @@ int sms_cart_context_load(uint8 *state)
         cart_rom.fcr[3] = 2;
         break;
 
-      case MAPPER_ZEMINA_16K_32K:
-        cart_rom.fcr[0] = 0;
-        cart_rom.fcr[1] = 0;
-        cart_rom.fcr[2] = 1;
-        cart_rom.fcr[3] = 1;
-        break;
-
-      case MAPPER_ZEMINA_4x8K:
-        cart_rom.fcr[0] = 3;
-        cart_rom.fcr[1] = 2;
-        cart_rom.fcr[2] = 1;
-        cart_rom.fcr[3] = 0;
-        break;
-
       case MAPPER_KOREA_8K:
-      case MAPPER_MSX_8K:
-      case MAPPER_MSX_8K_NEMESIS:
-      case MAPPER_MSX_16K:
-      case MAPPER_MULTI_4x8K:
-      case MAPPER_MULTI_8K:
+      case MAPPER_MSX:
+      case MAPPER_MSX_NEMESIS:
         cart_rom.fcr[0] = 0;
         cart_rom.fcr[1] = 0;
         cart_rom.fcr[2] = 0;
