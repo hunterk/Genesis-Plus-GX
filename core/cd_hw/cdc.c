@@ -680,16 +680,6 @@ void cdc_reg_w(unsigned char data)
       /* set CRCOK bit only if decoding is enabled */
       cdc.stat[0] = data & BIT_DECEN;
 
-      /* decoding disabled ? */
-      if (!(data & BIT_DECEN))
-      {
-        /* clear pending decoder interrupt */
-        cdc.ifstat |= BIT_DECI;
-
-        /* update CDC IRQ state */
-        cdc.irq &= ~BIT_DECI;
-      }
-
       /* update STAT2 register */
       if (data & BIT_AUTORQ)
       {
