@@ -2,7 +2,7 @@
  *  Genesis Plus
  *  CD data controller (LC8951x compatible)
  *
- *  Copyright (C) 2012-2024  Eke-Eke (Genesis Plus GX)
+ *  Copyright (C) 2012-2019  Eke-Eke (Genesis Plus GX)
  *
  *  Redistribution and use of this code or any derivative works are permitted
  *  provided that the following conditions are met:
@@ -862,7 +862,31 @@ unsigned char cdc_reg_r(void)
       break;
     }
 
-    default:  /* unemulated registers */
+    default:  /* by default, COMIN is always empty */
+      return 0xff;
+  }
+}
+
+unsigned short cdc_host_r(void)
+{
+  /* check if data is available */
+  if (scd.regs[0x04>>1].byte.h & 0x40)
+  {
+    /* read 16-bit word from CDC RAM buffer (big-endian format) */
+    uint16 data = READ_WORD(cdc.ram, cdc.dac.w & 0x3ffe);
+
+#ifdef LOG_CDC
+    error("CDC host read 0x%04x -> 0x%04x (dbc=0x%x) (%X)\n", cdc.dac.w, data, cdc.dbc.w, s68k.pc);
+#endif
+ 
+    /* increment data address counter */
+    cdc.dac.w += 2;
+
+    /* decrement data byte counter */
+    cdc.dbc.w -= 2;
+
+    /* end of transfer ? */
+    if ((int16)cdc.dbc.w <= 0)
     {
       data = 0xff;
       break;
