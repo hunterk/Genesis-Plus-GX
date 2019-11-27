@@ -847,6 +847,13 @@ unsigned char cdc_reg_r(void)
       /* clear pending decoder interrupt */
       cdc.ifstat |= BIT_DECI;
 
+#if 0
+      /* no pending data transfer end interrupt */
+      if ((cdc.ifstat | BIT_DTEI) || !(cdc.ifctrl & BIT_DTEIEN))
+      {
+        /* clear pending level 5 interrupt */
+        scd.pending &= ~(1 << 5);
+
       /* update CDC IRQ state */
       cdc.irq &= ~BIT_DECI;
       break;
