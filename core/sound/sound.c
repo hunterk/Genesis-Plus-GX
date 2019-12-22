@@ -46,7 +46,7 @@ int8 audio_hard_disable = 0;
 #define YM2612_CLOCK_RATIO (7*6)
 
 /* FM output buffer (large enough to hold a whole frame at original chips rate) */
-#if defined(HAVE_YM3438_CORE) || defined(HAVE_OPLL_CORE)
+#ifdef HAVE_YM3438_CORE || HAVE_OPLL_CORE
 static int fm_buffer[1080 * 2 * 24];
 #else
 static int fm_buffer[1080 * 2];
@@ -233,70 +233,58 @@ static unsigned int YM3438_Read(unsigned int cycles, unsigned int a)
 }
 #endif
 
-static void NULL_YM_Update(int *buffer, int length)
+#ifdef HAVE_OPLL_CORE
+static void OPLL2413_Update(int* buffer, int length)
 {
-
-}
-
-void NULL_fm_reset(unsigned int cycles)
-{
-
-}
-
-void NULL_fm_write(unsigned int cycles, unsigned int address, unsigned int data)
-{
-
-}
-
-unsigned int NULL_fm_read(unsigned int cycles, unsigned int address)
-{
-  return 0;
-}
-
-void sound_update_fm_function_pointers(void)
-{
-  /* Only set function pointers for YM_Update, fm_reset, fm_write, fm_read */
-  if (audio_hard_disable)
+  int i, j;
+  for (i = 0; i < length; i++)
   {
-    /* Dummy audio callbacks for audio hard disable */
-    YM_Update = NULL_YM_Update;
-    fm_reset = NULL_fm_reset;
-    fm_write = NULL_fm_write;
-    fm_read = NULL_fm_read;
-    return;
+    OPLL_Clock(&opll, opll_accm[opll_cycles]);
+    opll_cycles = (opll_cycles + 1) % 18;
+    if (opll_cycles == 0)
+    {
+      opll_sample = 0;
+      for (j = 0; j < 18; j++)
+      {
+        opll_sample += opll_accm[j][0] + opll_accm[j][1];
+      }
+    }
+    *buffer++ = opll_sample * 16 * opll_status;
+    *buffer++ = opll_sample * 16 * opll_status;
   }
+}
 
-  if ((system_hw & SYSTEM_PBC) == SYSTEM_MD)
+static void OPLL2413_Reset(unsigned int cycles)
+{
+  /* synchronize FM chip with CPU */
+  fm_update(cycles);
+
+  /* reset FM chip */
+  OPLL_Reset(&opll, opll_type_ym2413);
+}
+
+static void OPLL2413_Write(unsigned int cycles, unsigned int a, unsigned int v)
+{
+  if (!(a&2))
   {
-    /* YM2612 */
-#ifdef HAVE_YM3438_CORE
-    if (config.ym3438)
-    {
-      /* Nuked OPN2 */
-      YM_Update = YM3438_Update;
-      fm_reset = YM3438_Reset;
-      fm_write = YM3438_Write;
-      fm_read = YM3438_Read;
-    }
-    else
-#endif
-    {
-      /* MAME OPN2 */
-      YM_Update = YM2612Update;
-      fm_reset = YM2612_Reset;
-      fm_write = YM2612_Write;
-      fm_read = YM2612_Read;
-    }
+    /* synchronize FM chip with CPU */
+    fm_update(cycles);
+
+    /* write FM register */
+    OPLL_Write(&opll, a, v);
   }
   else
   {
-    /* YM2413 */
-    YM_Update = (config.ym2413 & 1) ? YM2413Update : NULL;
-    fm_reset = YM2413_Reset;
-    fm_write = YM2413_Write;
-    fm_read = NULL;
+    opll_status = v&1;
   }
 }
+
+static unsigned int OPLL2413_Read(unsigned int cycles, unsigned int a)
+{
+    return 0xf8 | opll_status;
+}
+
+#endif
 
 void sound_init( void )
 {
@@ -516,7 +504,7 @@ int sound_context_save(uint8 *state)
   }
   else
   {
-#ifdef HAVE_OPLL_CORE
+#ifdef HAVE_YM3438_CORE
     save_param(&config.opll, sizeof(config.opll));
     if (config.opll)
     {

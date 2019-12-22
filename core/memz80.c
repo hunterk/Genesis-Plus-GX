@@ -725,7 +725,7 @@ unsigned char z80_m3_port_r(unsigned int port)
       /* read FM sound unit (FM-70) if enabled */
       if (!(port & 4) && (config.ym2413 & 1))
       {
-        /* I/O ports are automatically disabled by FM sound unit hardware */
+        /* I/O ports are automatically disabled by hardware */
         return fm_read(Z80.cycles, port);
       }
 
