@@ -53,8 +53,8 @@ typedef struct
 {
   unsigned int (*read)(unsigned int address);
   void (*write)(unsigned int address, unsigned int data);
-} t_zbank_memory_map;
+} T_ZBANK_MEMORY_MAP;
 
-extern t_zbank_memory_map zbank_memory_map[256];
+extern T_ZBANK_MEMORY_MAP zbank_memory_map[256];
 
 #endif /* _MEMBNK_H_ */
