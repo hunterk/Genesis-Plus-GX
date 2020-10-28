@@ -213,10 +213,6 @@ static bool retro_audio_buff_underrun      = false;
 static unsigned audio_latency              = 0;
 static bool update_audio_latency           = false;
 
-#ifdef USE_PER_SOUND_CHANNELS_CONFIG
-static bool show_advanced_av_settings      = true;
-#endif
-
 static void retro_audio_buff_status_cb(
       bool active, unsigned occupancy, bool underrun_likely)
 {
@@ -1266,12 +1262,6 @@ static void check_variables(bool first_run)
 {
   unsigned orig_value;
   struct retro_system_av_info info;
-#ifdef USE_PER_SOUND_CHANNELS_CONFIG
-  unsigned c;
-  char md_fm_channel_volume_base_str[]  = "genesis_plus_gx_md_channel_0_volume";
-  char sms_fm_channel_volume_base_str[] = "genesis_plus_gx_sms_fm_channel_0_volume";
-  char psg_channel_volume_base_str[]    = "genesis_plus_gx_psg_channel_0_volume";
-#endif
   bool update_viewports     = false;
   bool reinit               = false;
   bool update_frameskip     = false;
@@ -1443,87 +1433,6 @@ static void check_variables(bool first_run)
           /* reinitialize VDP timings */
           lines_per_frame = vdp_pal ? 313 : 262;
      
-          /* reinitialize NTSC/PAL mode in VDP status */
-          if (system_hw & SYSTEM_MD)
-          {
-            status = (status & ~1) | vdp_pal;
-          }
-
-          /* reinitialize VC max value */
-          switch (bitmap.viewport.h)
-          {
-            case 192:
-              vc_max = vc_table[0][vdp_pal];
-              break;
-            case 224:
-              vc_max = vc_table[1][vdp_pal];
-              break;
-            case 240:
-              vc_max = vc_table[3][vdp_pal];
-              break;
-          }
-
-          update_viewports = true;
-        }
-
-        update_frameskip = true;
-      }
-    }
-  }
-
-  var.key = "genesis_plus_gx_vdp_mode";
-  environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var);
-  {
-    orig_value = config.vdp_mode;
-    if (var.value && !strcmp(var.value, "60hz"))
-      config.vdp_mode = 1;
-    else if (var.value && !strcmp(var.value, "50hz"))
-      config.vdp_mode = 2;
-    else
-      config.vdp_mode = 0;
-
-    if (orig_value != config.vdp_mode)
-    {
-      if (system_hw)
-      {
-        get_region(NULL);
-
-        if ((system_hw == SYSTEM_MCD) || ((system_hw & SYSTEM_SMS) && config.bios))
-        {
-          /* system with region BIOS should be reinitialized */
-          reinit = true;
-        }
-        else
-        {
-          static const uint16 vc_table[4][2] = 
-          {
-            /* NTSC, PAL */
-            {0xDA , 0xF2},  /* Mode 4 (192 lines) */
-            {0xEA , 0x102}, /* Mode 5 (224 lines) */
-            {0xDA , 0xF2},  /* Mode 4 (192 lines) */
-            {0x106, 0x10A}  /* Mode 5 (240 lines) */
-          };
-
-          /* framerate might have changed, reinitialize audio timings */
-          audio_set_rate(44100, 0);
-
-          /* reinitialize I/O region register */
-          if (system_hw == SYSTEM_MD)
-          {
-            io_reg[0x00] = 0x20 | region_code | (config.bios & 1);
-          }
-          else if (system_hw == SYSTEM_MCD)
-          {
-            io_reg[0x00] = region_code | (config.bios & 1);
-          }
-          else
-          {
-            io_reg[0x00] = 0x80 | (region_code >> 1);
-          }
-
-          /* reinitialize VDP timings */
-          lines_per_frame = vdp_pal ? 313 : 262;
-
           /* reinitialize NTSC/PAL mode in VDP status */
           if (system_hw & SYSTEM_MD)
           {
@@ -3354,6 +3263,8 @@ bool retro_load_game(const struct retro_game_info *info)
 
    set_memory_maps();
 
+   init_frameskip();
+
    return true;
 }
 
@@ -3491,7 +3402,6 @@ void retro_init(void)
    check_system_specs();
 
    environ_cb(RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS, &serialization_quirks);
-   environ_cb(RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE, &disk_ctrl);
 
    frameskip_type             = 0;
    frameskip_threshold        = 0;
@@ -3540,7 +3450,7 @@ void retro_run(void)
    environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated);
    if (updated)
    {
-      check_variables();
+      check_variables(false);
       if (restart_eq)
       {
          audio_set_equalizer();
@@ -3566,6 +3476,43 @@ void retro_run(void)
       do_skip = false;
       audio_hard_disable = false;
    }
+
+  /* Check whether current frame should
+  * be skipped */
+  if ((frameskip_type > 0) &&
+      retro_audio_buff_active &&
+      !do_skip)
+  {
+    switch (frameskip_type)
+    {
+      case 1: /* auto */
+        do_skip = retro_audio_buff_underrun ? 1 : 0;
+        break;
+      case 2: /* manual */
+        do_skip = (retro_audio_buff_occupancy < frameskip_threshold) ? 1 : 0;
+        break;
+      default:
+        do_skip = 0;
+        break;
+    }
+
+    if (!do_skip || (frameskip_counter >= FRAMESKIP_MAX))
+    {
+      do_skip           = 0;
+      frameskip_counter = 0;
+    }
+    else
+      frameskip_counter++;
+  }
+
+  /* If frameskip settings have changed, update
+  * frontend audio latency */
+  if (update_audio_latency)
+  {
+    environ_cb(RETRO_ENVIRONMENT_SET_MINIMUM_AUDIO_LATENCY,
+        &audio_latency);
+    update_audio_latency = false;
+  }
 
    if (system_hw == SYSTEM_MCD)
    {
@@ -3620,7 +3567,11 @@ void retro_run(void)
       }
    }
 
-   video_cb(bitmap.data, vwidth, vheight, 720 * 2);
+   if (!do_skip)
+     video_cb(bitmap.data, vwidth, vheight, 720 * 2);
+   else
+     video_cb(NULL, vwidth, vheight, 720 * 2);
+
    audio_cb(soundbuffer, audio_update(soundbuffer));
 }
 
