@@ -213,6 +213,8 @@ static bool retro_audio_buff_underrun      = false;
 static unsigned audio_latency              = 0;
 static bool update_audio_latency           = false;
 
+static bool show_advanced_av_settings = true;
+
 static void retro_audio_buff_status_cb(
       bool active, unsigned occupancy, bool underrun_likely)
 {
@@ -935,11 +937,9 @@ static void config_default(void)
    config.ym2612         = YM2612_DISCRETE; 
    config.ym2413         = 2; /* AUTO */
    config.mono           = 0; /* STEREO output */
-#ifdef USE_PER_SOUND_CHANNELS_CONFIG
-   for (i = 0; i < 4; i++) config.psg_ch_volumes[i]    = 100;  /* individual channel volumes */
-   for (i = 0; i < 6; i++) config.md_ch_volumes[i]     = 100;  /* individual channel volumes */
+   for (i = 0; i < 4; i++) config.psg_ch_volumes[i] = 100;  /* individual channel volumes */
+   for (i = 0; i < 6; i++) config.md_ch_volumes[i] = 100;  /* individual channel volumes */
    for (i = 0; i < 9; i++) config.sms_fm_ch_volumes[i] = 100;  /* individual channel volumes */
-#endif
 #ifdef HAVE_YM3438_CORE
    config.ym3438         = 0;
 #endif
@@ -1880,60 +1880,49 @@ static void check_variables(bool first_run)
       config.no_sprite_limit = 1;
   }
 
-  var.key = "genesis_plus_gx_enhanced_vscroll";
-  environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var);
-  {
-      if (!var.value || !strcmp(var.value, "disabled"))
-         config.enhanced_vscroll = 0;
-      else
-         config.enhanced_vscroll = 1;
-  }
-
-  var.key = "genesis_plus_gx_enhanced_vscroll_limit";
-  if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-    config.enhanced_vscroll_limit = strtol(var.value, NULL, 10);
-
-#ifdef USE_PER_SOUND_CHANNELS_CONFIG
+  char psg_channel_volume_base_str[] = "genesis_plus_gx_psg_channel_0_volume";
   var.key = psg_channel_volume_base_str;
-  for (c = 0; c < 4; c++)
-  {
-     psg_channel_volume_base_str[28] = c+'0';
-     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var))
-     {
-        config.psg_ch_volumes[c] = atoi(var.value);
-        /* need to recall config to have the settings applied */
-        if ((system_hw & SYSTEM_PBC) == SYSTEM_MD)
-           psg_config(0, config.psg_preamp, 0xff);
-        else
-           psg_config(0, config.psg_preamp, io_reg[6]);
-     }
+  for (unsigned c = 0; c < 4; c++) {
+    psg_channel_volume_base_str[28] = c+'0';
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var))
+    {
+      config.psg_ch_volumes[c] = atoi(var.value);
+      // need to recall config to have the settings applied
+      if ((system_hw & SYSTEM_PBC) == SYSTEM_MD)
+      {
+        psg_config(0, config.psg_preamp, 0xff);
+      }
+      else
+      {
+        psg_config(0, config.psg_preamp, io_reg[6]);
+      }
+    }
   }
   
+  char md_fm_channel_volume_base_str[] = "genesis_plus_gx_md_channel_0_volume";
   var.key = md_fm_channel_volume_base_str;
-  for (c = 0; c < 6; c++)
-  {
+  for (unsigned c = 0; c < 6; c++) {
     md_fm_channel_volume_base_str[27] = c+'0';
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var))
+    {
       config.md_ch_volumes[c] = atoi(var.value);
+    }
   }
   
+  char sms_fm_channel_volume_base_str[] = "genesis_plus_gx_sms_fm_channel_0_volume";
   var.key = sms_fm_channel_volume_base_str;
-  for (c = 0; c < 9; c++)
-  {
-     sms_fm_channel_volume_base_str[31] = c+'0';
-     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var))
-        config.sms_fm_ch_volumes[c] = atoi(var.value);
+  for (unsigned c = 0; c < 9; c++) {
+    sms_fm_channel_volume_base_str[31] = c+'0';
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var))
+    {
+      config.sms_fm_ch_volumes[c] = atoi(var.value);
+    }
   }
 
   var.key = "genesis_plus_gx_show_advanced_audio_settings";
   var.value = NULL;
 
-  /* If frontend supports core option categories,
-   * then genesis_plus_gx_show_advanced_audio_settings
-   * is ignored and no options should be hidden */
-
-  if (!libretro_supports_option_categories &&
-      environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+  if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
   {
     bool show_advanced_av_settings_prev = show_advanced_av_settings;
 
@@ -1976,8 +1965,7 @@ static void check_variables(bool first_run)
       }
     }
   }
-#endif
-
+    
   if (reinit)
   {
 #ifdef HAVE_OVERCLOCK
