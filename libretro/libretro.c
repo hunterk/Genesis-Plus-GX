@@ -1815,10 +1815,8 @@ static void check_variables(bool first_run)
     orig_value = config.left_border;
     if (!var.value || !strcmp(var.value, "disabled"))
       config.left_border = 0;
-    else if (var.value && !strcmp(var.value, "left border"))
+    else if (var.value && !strcmp(var.value, "enabled"))
       config.left_border = 1;
-    else if (var.value && !strcmp(var.value, "left & right borders"))
-      config.left_border = 2;
     if (orig_value != config.left_border)
       update_viewports = true;
   }
@@ -1948,12 +1946,22 @@ static void check_variables(bool first_run)
   if (update_viewports)
   {
     bitmap.viewport.changed = 11;
-    if ((system_hw == SYSTEM_GG) && !config.gg_extra)
+    if ((system_hw == SYSTEM_GGMS) && !config.gg_extra)
       bitmap.viewport.x = (config.overscan & 2) ? 14 : -48;
+    if ((system_hw == SYSTEM_SMS || system_hw == SYSTEM_SMS2) && config.left_border)
+      bitmap.viewport.x = (config.overscan & 2) ? 7 : -8;
+    else
+      bitmap.viewport.x = (config.overscan & 2) * 7 ;
+  }
+  
+    if (update_viewports)
+  {
+    bitmap.viewport.changed = 10;
+
     else
       bitmap.viewport.x = (config.overscan & 2) * 7;
   }
-
+   
   /* Reinitialise frameskipping, if required */
   if ((update_frameskip || reinit) && !first_run)
     init_frameskip();
