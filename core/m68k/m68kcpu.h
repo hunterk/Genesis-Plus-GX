@@ -862,7 +862,7 @@ INLINE uint m68ki_read_8(uint address)
   else val = READ_BYTE(temp->base, (address) & 0xffff);
 
 #ifdef HOOK_CPU
-  if (UNLIKELY(cpu_hook))
+  if (cpu_hook)
     cpu_hook(HOOK_M68K_R, 1, address, val);
 #endif
 
@@ -882,7 +882,7 @@ INLINE uint m68ki_read_16(uint address)
   else val = *(uint16 *)(temp->base + ((address) & 0xffff));
 
 #ifdef HOOK_CPU
-  if (UNLIKELY(cpu_hook))
+  if (cpu_hook)
     cpu_hook(HOOK_M68K_R, 2, address, val);
 #endif
 
@@ -898,15 +898,11 @@ INLINE uint m68ki_read_32(uint address)
   m68ki_check_address_error(address, MODE_READ, FLAG_S | m68ki_get_address_space()) /* auto-disable (see m68kcpu.h) */
 
   temp = &m68ki_cpu.memory_map[((address)>>16)&0xff];
-  if (temp->read16) val = (*temp->read16)(ADDRESS_68K(address)) << 16;
-  else val = m68k_read_immediate_16(address) << 16;
-
-  temp = &m68ki_cpu.memory_map[((address+2)>>16)&0xff];
-  if (temp->read16) val |= (*temp->read16)(ADDRESS_68K(address+2));
-  else val |= m68k_read_immediate_16(address+2);
+  if (temp->read16) val = ((*temp->read16)(ADDRESS_68K(address)) << 16) | ((*temp->read16)(ADDRESS_68K(address + 2)));
+  else val = m68k_read_immediate_32(address);
 
 #ifdef HOOK_CPU
-  if (UNLIKELY(cpu_hook))
+  if (cpu_hook)
     cpu_hook(HOOK_M68K_R, 4, address, val);
 #endif
 
@@ -920,7 +916,7 @@ INLINE void m68ki_write_8(uint address, uint value)
   m68ki_set_fc(FLAG_S | FUNCTION_CODE_USER_DATA) /* auto-disable (see m68kcpu.h) */
 
 #ifdef HOOK_CPU
-  if (UNLIKELY(cpu_hook))
+  if (cpu_hook)
     cpu_hook(HOOK_M68K_W, 1, address, value);
 #endif
 
@@ -937,7 +933,7 @@ INLINE void m68ki_write_16(uint address, uint value)
   m68ki_check_address_error(address, MODE_WRITE, FLAG_S | FUNCTION_CODE_USER_DATA); /* auto-disable (see m68kcpu.h) */
 
 #ifdef HOOK_CPU
-  if (UNLIKELY(cpu_hook))
+  if (cpu_hook)
     cpu_hook(HOOK_M68K_W, 2, address, value);
 #endif
 
@@ -954,7 +950,7 @@ INLINE void m68ki_write_32(uint address, uint value)
   m68ki_check_address_error(address, MODE_WRITE, FLAG_S | FUNCTION_CODE_USER_DATA) /* auto-disable (see m68kcpu.h) */
 
 #ifdef HOOK_CPU
-  if (UNLIKELY(cpu_hook))
+  if (cpu_hook)
     cpu_hook(HOOK_M68K_W, 4, address, value);
 #endif
 

@@ -2,7 +2,7 @@
  *  Genesis Plus
  *  Mega Drive cartridge hardware support
  *
- *  Copyright (C) 2007-2019  Eke-Eke (Genesis Plus GX)
+ *  Copyright (C) 2007-2021  Eke-Eke (Genesis Plus GX)
  *
  *  Many cartridge protections were initially documented by Haze
  *  (http://haze.mameworld.info/)
@@ -135,6 +135,7 @@ static const md_entry_t rom_database[] =
 /* RADICA (Sensible Soccer Plus edition) (PAL) */
   {0x0000,0x1f7f,0x00,0x00,{{0x00,0x00,0x00,0x00},{0xffffff,0xffffff,0xffffff,0xffffff},{0x000000,0x000000,0x000000,0x000000},0,0,mapper_128k_radica_r,m68k_unused_8_w,NULL,NULL}},
 
+
 /* Tenchi wo Kurau III: Sangokushi Gaiden - Chinese Fighter */
   {0x9490,0x8180,0x40,0x6f,{{0x00,0x00,0x00,0x00},{0xf0000c,0xf0000c,0xf0000c,0xf0000c},{0x400000,0x400004,0x400008,0x40000c},0,1,NULL,m68k_unused_8_w,default_regs_r,custom_alt_regs_w}},
 
@@ -240,6 +241,12 @@ static const md_entry_t rom_database[] =
   {0x6cca,0x2395,0x50,0x50,{{0x50,0x00,0x00,0x00},{0xffffff,0xffffff,0xffffff,0xffffff},{0x500008,0x000000,0x000000,0x000000},0,0,NULL,m68k_unused_8_w,default_regs_r,NULL}},
 /* Rock World */
   {0x3547,0xa3da,0x50,0x50,{{0x50,0xa0,0x00,0x00},{0xffffff,0xffffff,0xffffff,0xffffff},{0x500008,0x500208,0x000000,0x000000},0,0,NULL,m68k_unused_8_w,default_regs_r,NULL}},
+
+/* Rock Heaven */
+  {0x6cca,0x2395,0x50,0x50,{{0x50,0x00,0x00,0x00},{0xffffff,0xffffff,0xffffff,0xffffff},{0x500008,0x000000,0x000000,0x000000},0,0,NULL,NULL,default_regs_r,NULL}},
+/* Rock World */
+  {0x3547,0xa3da,0x50,0x50,{{0x50,0xa0,0x00,0x00},{0xffffff,0xffffff,0xffffff,0xffffff},{0x500008,0x500208,0x000000,0x000000},0,0,NULL,NULL,default_regs_r,NULL}},
+
 
 /* Rockman X3 (bootleg version ? two last register returned values are ignored, note that 0xaa/0x18 would work as well) */
   {0x0000,0x9d0e,0x40,0x40,{{0x0c,0x00,0xc9,0xf0},{0xffffff,0xffffff,0xffffff,0xffffff},{0xa13000,0x000000,0x400004,0x400006},0,0,default_regs_r,m68k_unused_8_w,default_regs_r,NULL}},
@@ -407,7 +414,7 @@ void md_cart_init(void)
   if (sram.on && !sram.custom)
   {
     /* SRAM is mapped by default unless it overlaps with ROM area (Phantasy Star 4, Beyond Oasis/Legend of Thor, World Series Baseball 9x, Duke Nukem 3D,...) */
-    if (sram.start >= size)
+    if (sram.start >= cart.romsize)
     {
       m68k.memory_map[sram.start >> 16].base    = sram.sram;
       m68k.memory_map[sram.start >> 16].read8   = sram_read_byte;
@@ -418,11 +425,12 @@ void md_cart_init(void)
       zbank_memory_map[sram.start >> 16].write  = sram_write_byte;
     }
 
-    /* support for Triple Play 96 & Triple Play - Gold Edition (available ROM dumps include dumped SRAM data) */
+    /* support for Triple Play 96 & Triple Play - Gold Edition mapping */
     else if ((strstr(rominfo.product,"T-172026") != NULL) || (strstr(rominfo.product,"T-172116") != NULL))
     {
-      /* $000000-$1fffff and $300000-$3fffff: cartridge ROM (2MB + 1MB) */
-      /* $200000-$2fffff: SRAM (32 KB mirrored) */
+      /* $000000-$1fffff: cartridge ROM (lower 2MB) */
+      /* $200000-$2fffff: SRAM (32KB mirrored) */
+      /* NB: existing 4MB ROM dumps include SRAM data at ROM offsets 0x200000-0x2fffff */ 
       for (i=0x20; i<0x30; i++)
       {
         m68k.memory_map[i].base    = sram.sram;
@@ -432,6 +440,16 @@ void md_cart_init(void)
         m68k.memory_map[i].write16 = sram_write_word;
         zbank_memory_map[i].read   = sram_read_byte;
         zbank_memory_map[i].write  = sram_write_byte;
+      }
+
+      /* $300000-$3fffff: cartridge ROM (upper 1MB) */
+      /* NB: only real (3MB) Mask ROM dumps need ROM offsets 0x200000-0x2fffff to be remapped to this area */
+      if (READ_BYTE(cart.rom, 0x200000) != 0xFF)
+      {
+        for (i=0x30; i<0x40; i++)
+        {
+          m68k.memory_map[i].base = cart.rom + ((i - 0x10) << 16);
+        }
       }
     }
   }
@@ -443,6 +461,79 @@ void md_cart_init(void)
   if ((READ_BYTE(cart.rom, 0x1c8) == 'S') && (READ_BYTE(cart.rom, 0x1c9) == 'V'))
   {
     svp_init();
+  }
+
+  /**********************************************
+          LOCK-ON 
+  ***********************************************/
+
+  /* clear existing patches */
+  ggenie_shutdown();
+  areplay_shutdown();
+
+  /* initialize extra hardware */
+  switch (config.lock_on)
+  {
+    case TYPE_GG:
+    {
+      ggenie_init();
+      break;
+    }
+
+    case TYPE_AR:
+    {
+      areplay_init();
+      break;
+    }
+
+    case TYPE_SK:
+    {
+      /* store S&K ROM above cartridge ROM (and before backup memory) */
+      if (cart.romsize > 0x600000) break;
+
+      /* try to load Sonic & Knuckles ROM file (2 MB) */
+      if (load_archive(SK_ROM, cart.rom + 0x600000, 0x200000, NULL) == 0x200000)
+      {
+        /* check ROM header */
+        if (!memcmp(cart.rom + 0x600000 + 0x120, "SONIC & KNUCKLES",16))
+        {
+          /* try to load Sonic 2 & Knuckles UPMEM ROM (256 KB) */
+          if (load_archive(SK_UPMEM, cart.rom + 0x900000, 0x40000, NULL) == 0x40000)
+          {
+            /* $000000-$1FFFFF is mapped to S&K ROM */
+            for (i=0x00; i<0x20; i++)
+            {
+              m68k.memory_map[i].base = cart.rom + 0x600000 + (i << 16);
+            }
+
+#ifdef LSB_FIRST
+            for (i=0; i<0x200000; i+=2)
+            {
+              /* Byteswap ROM */
+              uint8 temp = cart.rom[i + 0x600000];
+              cart.rom[i + 0x600000] = cart.rom[i + 0x600000 + 1];
+              cart.rom[i + 0x600000 + 1] = temp;
+            }
+
+            for (i=0; i<0x40000; i+=2)
+            {
+              /* Byteswap ROM */
+              uint8 temp = cart.rom[i + 0x900000];
+              cart.rom[i + 0x900000] = cart.rom[i + 0x900000 + 1];
+              cart.rom[i + 0x900000 + 1] = temp;
+            }
+#endif
+            cart.special |= HW_LOCK_ON;
+          }
+        }
+      }
+      break;
+    }
+
+    default:
+    {
+      break;
+    }
   }
 
   /**********************************************
@@ -750,6 +841,20 @@ void md_cart_init(void)
     sram.start = 0x200000;
     sram.end = 0x201fff;
   }
+  else if ((cart.romsize == 0x400000) && 
+           (READ_BYTE(cart.rom, 0x200150) == 'C') &&
+           (READ_BYTE(cart.rom, 0x200151) == 'A') &&
+           (READ_BYTE(cart.rom, 0x200152) == 'N') &&
+           (READ_BYTE(cart.rom, 0x200153) == 'O') &&
+           (READ_BYTE(cart.rom, 0x200154) == 'N'))
+  {
+    /* Canon - Legend of the new Gods (4MB dump) */
+    cart.hw.time_w = mapper_wd1601_w;
+    cart.hw.bankshift = 1;
+    sram.on = 1;
+    sram.start = 0x200000;
+    sram.end = 0x201fff;
+  }
   else if ((*(uint16 *)(cart.rom + 0x08) == 0x6000) && (*(uint16 *)(cart.rom + 0x0a) == 0x01f6) && (rominfo.realchecksum == 0xf894))
   {
     /* Super Mario World 64 (unlicensed) mapper */
@@ -1000,15 +1105,15 @@ int md_cart_context_save(uint8 *state)
       /* SRAM */
       state[bufferptr++] = 0xff;
     }
-    else if (base >= cart.rom && base < cart.rom + MAXROMSIZE)
+    else if (base == boot_rom)
     {
-      /* Cartridge ROM */
-      state[bufferptr++] = ((base - cart.rom) >> 16) & 0xff;
+      /* Boot ROM */
+      state[bufferptr++] = 0xfe;
     }
     else
     {
-      /* TMSS or special cartridge rom */
-      state[bufferptr++] = 0xfe;
+      /* Cartridge ROM */
+      state[bufferptr++] = ((base - cart.rom) >> 16) & 0xff;
     }
   }
 
@@ -1068,7 +1173,7 @@ int md_cart_context_load(uint8 *state)
       zbank_memory_map[i].write   = sram_write_byte;
 
     }
-    else if (offset < (MAXROMSIZE >> 16))
+    else
     {
       /* check if SRAM was mapped there before loading state */
       if (m68k.memory_map[i].base == sram.sram)
@@ -1083,10 +1188,6 @@ int md_cart_context_load(uint8 *state)
 
       /* ROM */
       m68k.memory_map[i].base = (offset == 0xfe) ? boot_rom : (cart.rom + (offset << 16));
-    }
-    else
-    {
-      /* TMSS or Special cartridge ROM mapped in by reset, leave it mapped */
     }
   }
 
@@ -2167,24 +2268,23 @@ static uint32 mapper_128k_radica_r(uint32 address)
 
 
 /*
-  Custom logic (ST 16S25HB1 PAL) used in Micro Machines USA cartridge (SR16V1.1 board)
-  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-   /VRES is asserted to bypass TMSS security checks when write access to 0xA141xx 
-   with D0=1 is detected (access to cartridge ROM enabled instead of TMSS Boot ROM)
+  Custom logic (ST 16S25HB1 PAL) used in Micro Machines US cartridge (SR16V1.1 board)
+  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   /VRES is asserted after write access to 0xA14101 (TMSS bank-shift register)
+   with D0=1 (cartridge ROM access enabled instead of TMSS Boot ROM) being detected 
 */
 static void mapper_sr16v1_w(uint32 address, uint32 data)
 {
-  /* default I/O and Control registers write handler */
+  /* 0xA10000-0xA1FFFF address range is mapped to I/O and Control registers */
   ctrl_io_write_byte(address, data);
 
-  /* cartridge uses /LWR, /AS and VA1-VA18 (only VA8-VA17 are required to decode access to TMSS bankswitch register) */
+  /* cartridge uses /LWR, /AS and VA1-VA18 (only VA8-VA17 required to decode access to TMSS bank-shift register) */
   if ((address & 0xff01) == 0x4101)
   {
-    /* check if cartridge ROM is enabled (D0=1) */
+    /* cartridge ROM is enabled when D0=1 */
     if (data & 0x01)
     {
-      /* asserting /VRES from cartridge should only reset 68k CPU (TODO: confirm this on real hardware) */
-       m68k_pulse_reset();
+      gen_reset(0);
     }
   }
 }

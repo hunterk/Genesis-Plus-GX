@@ -203,8 +203,8 @@ struct _metadata_entry
 typedef struct _zlib_allocator zlib_allocator;
 struct _zlib_allocator
 {
-	uint32_t *				allocptr[MAX_ZLIB_ALLOCS];
-	uint32_t *				allocptr2[MAX_ZLIB_ALLOCS];
+	UINT32 *				allocptr[MAX_ZLIB_ALLOCS];
+	UINT32 *				allocptr2[MAX_ZLIB_ALLOCS];
 };
 
 typedef struct _zlib_codec_data zlib_codec_data;
@@ -498,7 +498,7 @@ static void lzma_allocator_free_unused(lzma_allocator *codec)
 #define LZMA_MIN_ALIGNMENT_BITS 512
 #define LZMA_MIN_ALIGNMENT_BYTES (LZMA_MIN_ALIGNMENT_BITS / 8)
 
-static void *lzma_fast_alloc(void *p, size_t size)
+void *lzma_fast_alloc(void *p, size_t size)
 {
 	int scan;
 	uint32_t *addr        = NULL;
@@ -526,7 +526,7 @@ static void *lzma_fast_alloc(void *p, size_t size)
 	addr = (uint32_t *)malloc(size + sizeof(uint32_t) + LZMA_MIN_ALIGNMENT_BYTES);
 	if (addr==NULL)
 		return NULL;
-	for (scan = 0; scan < MAX_LZMA_ALLOCS; scan++)
+	for (int scan = 0; scan < MAX_LZMA_ALLOCS; scan++)
 	{
 		if (codec->allocptr[scan] == NULL)
 		{
@@ -3316,7 +3316,7 @@ static voidpf zlib_fast_alloc(voidpf opaque, uInt items, uInt size)
 {
 	zlib_allocator *alloc = (zlib_allocator *)opaque;
 	uintptr_t paddr = 0;
-	uint32_t *ptr;
+	UINT32 *ptr;
 	int i;
 
 	/* compute the size, rounding to the nearest 1k */
@@ -3337,7 +3337,7 @@ static voidpf zlib_fast_alloc(voidpf opaque, uInt items, uInt size)
 	}
 
 	/* alloc a new one */
-    ptr = (uint32_t *)malloc(size + sizeof(uint32_t) + ZLIB_MIN_ALIGNMENT_BYTES);
+    ptr = (UINT32 *)malloc(size + sizeof(UINT32) + ZLIB_MIN_ALIGNMENT_BYTES);
 	if (!ptr)
 		return NULL;
 
@@ -3346,13 +3346,17 @@ static voidpf zlib_fast_alloc(voidpf opaque, uInt items, uInt size)
 		if (!alloc->allocptr[i])
 		{
 			alloc->allocptr[i] = ptr;
-			paddr = (((uintptr_t)ptr) + sizeof(uint32_t) + (ZLIB_MIN_ALIGNMENT_BYTES-1)) & (~(ZLIB_MIN_ALIGNMENT_BYTES-1));
+			paddr = (((uintptr_t)ptr) + sizeof(UINT32) + (ZLIB_MIN_ALIGNMENT_BYTES-1)) & (~(ZLIB_MIN_ALIGNMENT_BYTES-1));
 			alloc->allocptr2[i] = (uint32_t*)paddr;
 			break;
 		}
 
 	/* set the low bit of the size so we don't match next time */
 	*ptr = size | 1;
+
+	/* return aligned block address */
+	return (voidpf)paddr;
+}
 
 	/* return aligned block address */
 	return (voidpf)paddr;
@@ -3366,7 +3370,7 @@ static voidpf zlib_fast_alloc(voidpf opaque, uInt items, uInt size)
 static void zlib_fast_free(voidpf opaque, voidpf address)
 {
 	zlib_allocator *alloc = (zlib_allocator *)opaque;
-	uint32_t *ptr = (uint32_t *)address;
+	UINT32 *ptr = (UINT32 *)address;
 	int i;
 
 	/* find the hunk */

@@ -5,7 +5,7 @@
  *  Support for SG-1000, Mark-III, Master System, Game Gear & Mega Drive ports access
  *
  *  Copyright (C) 1998-2003  Charles Mac Donald (original code)
- *  Copyright (C) 2007-2025  Eke-Eke (Genesis Plus GX)
+ *  Copyright (C) 2007-2020  Eke-Eke (Genesis Plus GX)
  *
  *  Redistribution and use of this code or any derivative works are permitted
  *  provided that the following conditions are met:
@@ -136,10 +136,8 @@ unsigned char z80_memory_r(unsigned int address)
     {
       if ((address >> 8) == 0x7F)
       {
-        /* request access to 68k bus */
-        z80_request_68k_bus_access();
-
-        /* read from $C00000-$C0FFFF area */
+		/* average Z80 wait-states when accessing 68k area */
+        Z80.cycles += 3 * 15;
         return (*zbank_memory_map[0xc0].read)(address);
       }
       return z80_unused_r(address);
@@ -147,10 +145,8 @@ unsigned char z80_memory_r(unsigned int address)
       
     default: /* $8000-$FFFF: 68k bank (32K) */
     {
-      /* request access to 68k bus */
-      z80_request_68k_bus_access();
-
-      /* read from 68k banked area */
+      /* average Z80 wait-states when accessing 68k area */
+      Z80.cycles += 3 * 15;
       address = zbank | (address & 0x7FFF);
       if (zbank_memory_map[address >> 16].read)
       {
@@ -191,10 +187,8 @@ void z80_memory_w(unsigned int address, unsigned char data)
 
         case 0x7F: /* $7F00-$7FFF: VDP */
         {
-          /* request access to 68k bus */
-          z80_request_68k_bus_access();
-
-          /* write to $C00000-$C0FFFF area */
+          /* average Z80 wait-states when accessing 68k area */
+          Z80.cycles += 3 * 15;
           (*zbank_memory_map[0xc0].write)(address, data);
           return;
         }
@@ -209,10 +203,8 @@ void z80_memory_w(unsigned int address, unsigned char data)
 
     default: /* $8000-$FFFF: 68k bank (32K) */
     {
-      /* request access to 68k bus */
-      z80_request_68k_bus_access();
-
-      /* write to 68k banked area */
+      /* average Z80 wait-states when accessing 68k area */
+      Z80.cycles += 3 * 15;
       address = zbank | (address & 0x7FFF);
       if (zbank_memory_map[address >> 16].write)
       {

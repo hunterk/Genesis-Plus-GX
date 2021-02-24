@@ -479,13 +479,13 @@ static void s68k_poll_sync(unsigned int reg_mask)
 
   if (!m68k.stopped)
   {
-    /* save current MAIN-CPU end cycle count (recursive execution is possible) */
+	/* save current MAIN-CPU end cycle count (recursive execution is possible) */
     int end_cycle = m68k.cycle_end;
 
     /* sync MAIN-CPU with SUB-CPU */
     m68k_run(cycles);
-
-    /* restore MAIN-CPU end cycle count */
+	
+	/* restore MAIN-CPU end cycle count */
     m68k.cycle_end = end_cycle;
   }
 
@@ -726,8 +726,21 @@ static unsigned int scd_read_word(unsigned int address)
   /* MAIN-CPU communication words */
   if ((address & 0x1f0) == 0x10)
   {
-    /* sync MAIN-CPU with SUB-CPU (fixes Mighty Morphin Power Rangers) */
-    m68k_sync();
+    if (!m68k.stopped)
+    {
+      /* relative MAIN-CPU cycle counter */
+      unsigned int cycles = (s68k.cycles * MCYCLES_PER_LINE) / SCYCLES_PER_LINE;
+	  
+	  /* save current MAIN-CPU end cycle count (recursive execution is possible) */
+      int end_cycle = m68k.cycle_end;
+
+      /* sync MAIN-CPU with SUB-CPU (Mighty Morphin Power Rangers) */
+      m68k_run(cycles);
+	  
+	  /* restore MAIN-CPU end cycle count */
+      m68k.cycle_end = end_cycle;
+    }
+
     s68k_poll_detect(3 << (address & 0x1e));
   }
 
@@ -1118,13 +1131,6 @@ static void scd_write_byte(unsigned int address, unsigned int data)
       return;
     }
 
-    case 0x4d: /* Font Color */
-    case 0x4c: /* !LDS and !UDS are ignored (verified on real hardware, cf. Krikzz's mcd-verificator) */
-    {
-       scd.regs[0x4c>>1].byte.l = data;
-       break;
-    }
-
     default:
     {
       uint16 reg_16 = address & 0x1fe;
@@ -1482,6 +1488,53 @@ static void scd_write_word(unsigned int address, unsigned int data)
 
       /* update IRQ level */
       s68k_update_irq((scd.pending & data) >> 1);
+      return;
+    }
+	
+	case 0x34: /* CD Fader */
+    {
+      /* Wondermega hardware (CXD2554M digital filter) */
+      if (cdd.type == CD_TYPE_WONDERMEGA)
+      {
+        /* only MSB is latched by CXD2554M chip, LSB is ignored (8-bit digital filter) */
+        /* attenuator data is 7-bit only (bits 0-7) */
+        data = (data >> 8) & 0x7f;
+
+        /* scale CXD2554M volume (0-127) to full (LC7883KM compatible) volume range (0-1024) */
+        cdd.fader[1] = (1024 * data) / 127 ;
+      }
+
+      /* Wondermega M2 / X'Eye hardware (SM5841A digital filter) */
+      else if (cdd.type == CD_TYPE_WONDERMEGA_M2)
+      {
+        /* only MSB is latched by SM5841A chip, LSB is ignored (8-bit digital filter) */
+        data = data >> 8;
+
+        /* attenuator data is set only when command bit (bit 0) is cleared (other commands are ignored) */
+        if (data & 0x01) return;
+
+        /* attenuator data is 7-bit only (bits 8-1) and reverted (bit 1 = msb) */
+        /* bit reversing formula taken from http://graphics.stanford.edu/~seander/bithacks.html#ReverseByteWith32Bits */
+        data = (((((data * 0x0802) & 0x22110) | ((data * 0x8020) & 0x88440)) * 0x10101) >> 16) & 0x7f;
+
+        /* convert & scale SM5841A attenuation (127-0) to full (LC7883KM compatible) volume range (0-1024) */
+        cdd.fader[1] = (1024 * (127 - data)) / 127 ;
+      }
+
+      /* default CD hardware (LC7883KM digital filter) */
+      else
+      {
+        /* get LC7883KM volume data (12-bit) */
+        cdd.fader[1] = data >> 4 ;
+      }
+
+      return;
+    }
+	
+	case 0x36: /* CDD control */
+    {
+      /* only bit 2 is writable (bits [1:0] forced to 0 by default) */
+      scd.regs[0x37>>1].byte.l = data & 0x04;
       return;
     }
 
@@ -1850,8 +1903,8 @@ void scd_reset(int hard)
     s68k.cycles = 0;
     s68k_pulse_reset();
     s68k_pulse_halt();
-
-    /* Reset frame cycle counter */
+	
+	/* Reset frame cycle counter */
     scd.cycles = 0;
   }
   else
@@ -1887,6 +1940,9 @@ void scd_reset(int hard)
   /* Clear CPU polling detection */
   memset(&m68k.poll, 0, sizeof(m68k.poll));
   memset(&s68k.poll, 0, sizeof(s68k.poll));
+  
+  /* reset CDD cycle counter */
+  cdd.cycles = (scd.cycles - s68k.cycles) * 3;
 
   /* reset CDD cycle counter */
   cdd.cycles = (scd.cycles - s68k.cycles) * 3;
@@ -1903,6 +1959,12 @@ void scd_update(unsigned int cycles)
   int m68k_end_cycles;
   int s68k_run_cycles;
   int s68k_end_cycles = scd.cycles + SCYCLES_PER_LINE;
+  
+  /* update CDC DMA transfer */
+  if (cdc.dma_w)
+  {
+    cdc_dma_update();
+  }
 
   /* run both CPU in sync until end of line */
   do
@@ -1915,7 +1977,7 @@ void scd_update(unsigned int cycles)
     {
       /* adjust Sub-CPU and Main-CPU end cycle counters up to Timer interrupt occurence */
       s68k_run_cycles = scd.timer;
-      m68k_end_cycles = ((scd.cycles + s68k_run_cycles) * MCYCLES_PER_LINE) / SCYCLES_PER_LINE;
+      m68k_end_cycles = mcycles_vdp + ((s68k_run_cycles * MCYCLES_PER_LINE) / SCYCLES_PER_LINE);
     }
     else
     {
@@ -1955,6 +2017,7 @@ void scd_update(unsigned int cycles)
       }
     }
 
+
     /* Timer */
     if (scd.timer)
     {
@@ -1978,12 +2041,6 @@ void scd_update(unsigned int cycles)
     }
   }
   while ((m68k.cycles < cycles) || (s68k.cycles < s68k_end_cycles));
-
-  /* update CDC DMA processing (if running) */
-  if (cdc.dma_w)
-  {
-    cdc_dma_update(scd.cycles);
-  }
 
   /* update GFX processing (if started) */
   if (scd.regs[0x58>>1].byte.h & 0x80)

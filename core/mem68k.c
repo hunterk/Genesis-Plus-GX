@@ -280,8 +280,8 @@ static void m68k_poll_sync(unsigned int reg_mask)
 
     /* sync SUB-CPU with MAIN-CPU */
     s68k_run(cycles);
-
-    /* restore SUB-CPU end cycle count */
+	
+	/* restore SUB-CPU end cycle count */
     s68k.cycle_end = end_cycle;
   }
 
@@ -394,8 +394,21 @@ unsigned int ctrl_io_read_byte(unsigned int address)
         /* SUB-CPU communication flags */
         if (index == 0x0f)
         {
-          /* sync SUB-CPU with MAIN-CPU (fixes Dracula Unleashed with Sega CD Model 2 Boot ROM) */
-          s68k_sync();
+          if (!s68k.stopped)
+          {
+            /* relative SUB-CPU cycle counter */
+            unsigned int cycles = (m68k.cycles * SCYCLES_PER_LINE) / MCYCLES_PER_LINE;
+			
+			/* save current SUB-CPU end cycle count (recursive execution is possible) */
+            int end_cycle = s68k.cycle_end;
+
+            /* sync SUB-CPU with MAIN-CPU (Dracula Unleashed w/ Sega CD Model 2 Boot ROM) */
+            s68k_run(cycles);
+			
+			/* restore SUB-CPU end cycle count */
+            s68k.cycle_end = end_cycle;
+          }
+
           m68k_poll_detect(1<<0x0f);
           return scd.regs[0x0f>>1].byte.l;
         }
@@ -573,8 +586,21 @@ unsigned int ctrl_io_read_word(unsigned int address)
           /* SUB-CPU communication words */
           if (index >= 0x20)
           {
-            /* sync SUB-CPU with MAIN-CPU (fixes Soul Star) */
-            s68k_sync();
+            if (!s68k.stopped)
+            {
+              /* relative SUB-CPU cycle counter */
+              unsigned int cycles = (m68k.cycles * SCYCLES_PER_LINE) / MCYCLES_PER_LINE;
+			  
+			  /* save current SUB-CPU end cycle count (recursive execution is possible) */
+              int end_cycle = s68k.cycle_end;
+
+              /* sync SUB-CPU with MAIN-CPU (Soul Star) */
+              s68k_run(cycles);
+			  
+			  /* restore SUB-CPU end cycle count */
+              s68k.cycle_end = end_cycle;
+            }
+
             m68k_poll_detect(3 << (index - 0x10));
           }
           
@@ -685,8 +711,20 @@ void ctrl_io_write_byte(unsigned int address, unsigned int data)
               /* level 2 interrupt enabled ? */
               if (scd.regs[0x32>>1].byte.l & 0x04)
               {
-                /* sync SUB-CPU with MAIN-CPU (fixes Earnest Evans, Fhey Area) */
-                s68k_sync();
+                if (!s68k.stopped)
+                {
+                  /* relative SUB-CPU cycle counter */
+                  unsigned int cycles = (m68k.cycles * SCYCLES_PER_LINE) / MCYCLES_PER_LINE;
+				  
+				  /* save current SUB-CPU end cycle count (recursive execution is possible) */
+                  int end_cycle = s68k.cycle_end;
+
+                  /* sync SUB-CPU with MAIN-CPU (Earnest Evans, Fhey Area) */
+                  s68k_run(cycles);
+				  
+				  /* restore SUB-CPU end cycle count */
+                  s68k.cycle_end = end_cycle;
+                }
 
                 /* set IFL2 flag */
                 scd.regs[0x00].byte.h |= 0x01;

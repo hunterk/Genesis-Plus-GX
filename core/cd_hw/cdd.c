@@ -260,40 +260,7 @@ int cdd_context_save(uint8 *state)
   save_param(&cdd.lba, sizeof(cdd.lba));
   save_param(&cdd.scanOffset, sizeof(cdd.scanOffset));
   save_param(&cdd.fader, sizeof(cdd.fader));
-
-  /* 4-bit pending flag and 4-bit CDD status are saved together (to maintain backward savestate compatibility) */
-  tmp8 = cdd.status | (cdd.pending << 4);
-  save_param(&tmp8, sizeof(tmp8));
-
-  /* current track is an audio track ? */
-  if (cdd.toc.tracks[cdd.index].type == TYPE_AUDIO)
-  {
-    /* get file read offset */
-#if defined(USE_LIBCHDR)
-    if (cdd.chd.file)
-    {
-      /* CHD file offset */
-      offset = cdd.chd.hunkofs;
-    }
-    else
-#endif
-#if defined(USE_LIBTREMOR) || defined(USE_LIBVORBIS)
-    if (cdd.toc.tracks[cdd.index].vf.seekable)
-    {
-      /* VORBIS file sample offset */
-      offset = ov_pcm_tell(&cdd.toc.tracks[cdd.index].vf);
-    }
-    else
-#endif 
-    if (cdd.toc.tracks[cdd.index].fd)
-    {
-      /* PCM file offset */
-      offset = cdStreamTell(cdd.toc.tracks[cdd.index].fd);
-    }
-  }
-
-  save_param(&offset, sizeof(offset));
-  save_param(&cdd.audio, sizeof(cdd.audio));
+  save_param(&cdd.status, sizeof(cdd.status));
 
   return bufferptr;
 }
@@ -329,6 +296,7 @@ int cdd_context_load(uint8 *state, char *version)
   load_param(&cdd.lba, sizeof(cdd.lba));
   load_param(&cdd.scanOffset, sizeof(cdd.scanOffset));
   load_param(&cdd.fader, sizeof(cdd.fader));
+  load_param(&cdd.status, sizeof(cdd.status));
 
   /* 4-bit pending flag and 4-bit CDD status are saved together (to maintain backward savestate compatibility) */
   load_param(&tmp8, sizeof(tmp8));
@@ -1243,14 +1211,6 @@ int cdd_load(char *filename, char *header)
       fd = cdStreamOpen(fname);
     }
 
-  /* CD tracks found ? */
-  if (cdd.toc.last)
-  {
-    /* Lead-out */
-    cdd.toc.tracks[cdd.toc.last].start = cdd.toc.end;
-
-    /* CD mounted */
-    cdd.loaded = 1;
 
     /* Valid CD-ROM Mode 1 track found ? */
     if (cdd.toc.tracks[0].type == TYPE_MODE1)
@@ -1337,7 +1297,7 @@ int cdd_load(char *filename, char *header)
           }
           while (cdd.toc.last < 29);
         }
-        else if (strstr(header + 0x180,"T-06201-01") != NULL)
+		else if (strstr(header + 0x180,"T-06201-01") != NULL)
         {
           /* Sewer Shark (USA) (REV1) */
           /* no audio track */
@@ -1366,7 +1326,7 @@ int cdd_load(char *filename, char *header)
     cdd.toc.tracks[cdd.toc.last].start = cdd.toc.end;
 
     /* CD mounted */
-    cdd.loaded = isMSDfile ? HW_ADDON_MEGASD : HW_ADDON_MEGACD;
+    cdd.loaded = 1;
 
     /* Automatically try to open associated subcode data file */
     memcpy(&fname[strlen(fname) - 4], ".sub", 4);
@@ -1562,7 +1522,7 @@ void cdd_read_audio(unsigned int samples)
       }
 
       /* save current CD-DA fader volume */
-      cdd.volume = curVol;
+      cdd.fader[0] = curVol;
 
       blip_end_frame(snd.blips[2], samples);
       return;
@@ -1864,24 +1824,18 @@ void cdd_update(void)
   if (cdd.latency > 0)
   {
     cdd.latency--;
+    return;
   }
-  else
-  {
-    /* reading disc */
-    if (cdd.status == CD_PLAY)
-    {
-      /* end of disc detection */
-      if (cdd.index >= cdd.toc.last)
-      {
-        cdd.status = CD_END;
-        return;
-      }
 
-      /* subcode data processing */
-      if (cdd.toc.sub)
-      {
-        cdd_read_subcode();
-      }
+  /* reading disc */
+  if (cdd.status == CD_PLAY)
+  {
+    /* end of disc detection */
+    if (cdd.index >= cdd.toc.last)
+    {
+      cdd.status = CD_END;
+      return;
+    }
 
       /* track type */
       if (cdd.toc.tracks[cdd.index].type)
@@ -2060,10 +2014,6 @@ void cdd_process(void)
         /* update reported drive status */
         scd.regs[0x38>>1].byte.h = cdd.status;
 
-        /* do not update RS1-RS8 if disc is stopped */
-        if ((cdd.status == CD_STOP) || (cdd.status > CD_PAUSE))
-          break;
-
         /* check if RS1 indicated invalid track infos (during seeking) */
         if (scd.regs[0x38>>1].byte.l == 0x0f)
         {
@@ -2113,14 +2063,11 @@ void cdd_process(void)
       scd.regs[0x36>>1].byte.h = 0x01;
 
       /* RS1-RS8 ignored, expects 0x0 (CD_STOP) in RS0 once */
-      scd.regs[0x38>>1].w = (CD_STOP << 8) | 0x0f;
+      scd.regs[0x38>>1].w = CD_STOP << 8;
       scd.regs[0x3a>>1].w = 0x0000;
       scd.regs[0x3c>>1].w = 0x0000;
       scd.regs[0x3e>>1].w = 0x0000;
-      scd.regs[0x40>>1].w = ~(CD_STOP + 0x0f) & 0x0f;
-
-      /* reset drive position */
-      cdd.index = cdd.lba = 0;
+      scd.regs[0x40>>1].w = ~CD_STOP & 0x0f;
       return;
     }
 
@@ -2195,6 +2142,17 @@ void cdd_process(void)
           scd.regs[0x40>>1].byte.h = track % 10;  /* Track Number (low digit) */
           break;
         }
+		
+		case 0x06:  /* Latest Error Information */
+        {
+          scd.regs[0x38>>1].w = (cdd.status << 8) | 0x06;
+          scd.regs[0x3a>>1].w = 0x0000; /* no error */
+          scd.regs[0x3c>>1].w = 0x0000;
+          scd.regs[0x3e>>1].w = 0x0000;
+          scd.regs[0x40>>1].byte.h = 0x00;
+          break;
+        }
+
 
         case 0x06:  /* Latest Error Information */
         {
@@ -2231,10 +2189,9 @@ void cdd_process(void)
       if (!cdd.latency)
       {
         /* Fixes a few games hanging because they expect data to be read with some delay */
-        /* Radical Rex needs at least one interrupt delay */
-        /* Wolf Team games (Anet Futatabi, Cobra Command, Earnest Evans, Road Avenger & Time Gal) need at least 10 interrupts delay  */
-        /* Space Adventure Cobra (2nd morgue scene) needs at least 13 interrupts delay (incl. seek time, so 10 is OK) */
-        cdd.latency = 10;
+        /* Wolf Team games (Annet Futatabi, Aisle Lord, Cobra Command, Earnest Evans, Road Avenger & Time Gal) need at least 11 interrupts delay  */
+        /* Space Adventure Cobra (2nd morgue scene) needs at least 13 interrupts delay (incl. seek time, so 11 is OK) */
+        cdd.latency = 11;
       }
 
       /* CD drive seek time */
@@ -2324,19 +2281,16 @@ void cdd_process(void)
       /* no audio track playing (yet) */
       scd.regs[0x36>>1].byte.h = 0x01;
 
-      /* update status */
+      /* update status (reported to host once seeking has ended) */
       cdd.status = CD_PLAY;
 
+      /* RS0 should indicates seeking until drive is ready (fixes audio delay in Bari Arm) */
       /* RS1=0xf to invalidate track infos in RS2-RS8 until drive is ready (fixes Snatcher Act 2 start cutscene) */
       scd.regs[0x38>>1].w = (CD_SEEK << 8) | 0x0f;
       scd.regs[0x3a>>1].w = 0x0000;
       scd.regs[0x3c>>1].w = 0x0000;
       scd.regs[0x3e>>1].w = 0x0000;
-      scd.regs[0x40>>1].w = ~(CD_SEEK + 0x0f) & 0x0f;
-
-      /* seeking should start with at least one interrupt delay (fixes Radical Rex incorrect PRG-RAM & Word-RAM initialization, causing missing sprites during intro) */
-      /* so pending flag is set (with CDD end status) to indicate seeking is pending */
-      cdd.pending = CD_PLAY;
+      scd.regs[0x40>>1].w = ~(CD_SEEK + 0xf) & 0x0f;
       return;
     }
 
@@ -2436,8 +2390,8 @@ void cdd_process(void)
       /* no audio track playing */
       scd.regs[0x36>>1].byte.h = 0x01;
 
-      /* update status */
-      cdd.status = CD_SEEK;
+      /* update status (reported to host once seeking has ended) */
+      cdd.status = CD_PAUSE;
 
       /* RS1=0xf to invalidate track infos in RS2-RS8 while seeking (fixes Final Fight CD intro when seek time is emulated) */
       scd.regs[0x38>>1].w = (CD_SEEK << 8) | 0x0f;
@@ -2512,15 +2466,12 @@ void cdd_process(void)
       /* update status */
       cdd.status = cdd.loaded ? CD_TOC : NO_DISC;
 
-      /* RS1-RS8 ignored, expects CD_STOP in RS0 once */
-      scd.regs[0x38>>1].w = (CD_STOP << 8) | 0x0f;
+      /* RS1-RS8 ignored, expects 0x0 (CD_STOP) in RS0 once */
+      scd.regs[0x38>>1].w = CD_STOP << 8;
       scd.regs[0x3a>>1].w = 0x0000;
       scd.regs[0x3c>>1].w = 0x0000;
       scd.regs[0x3e>>1].w = 0x0000;
-      scd.regs[0x40>>1].w = ~(CD_STOP + 0x0f) & 0x0f;
-
-      /* reset drive position */
-      cdd.index = cdd.lba = 0;
+      scd.regs[0x40>>1].w = ~CD_STOP & 0x0f;
 
 #ifdef CD_TRAY_CALLBACK
       CD_TRAY_CALLBACK
