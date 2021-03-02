@@ -136,7 +136,7 @@ unsigned char z80_memory_r(unsigned int address)
     {
       if ((address >> 8) == 0x7F)
       {
-		/* average Z80 wait-states when accessing 68k area */
+        /* average Z80 wait-states when accessing 68k area */
         Z80.cycles += 3 * 15;
         return (*zbank_memory_map[0xc0].read)(address);
       }
@@ -147,6 +147,7 @@ unsigned char z80_memory_r(unsigned int address)
     {
       /* average Z80 wait-states when accessing 68k area */
       Z80.cycles += 3 * 15;
+
       address = zbank | (address & 0x7FFF);
       if (zbank_memory_map[address >> 16].read)
       {
@@ -205,6 +206,7 @@ void z80_memory_w(unsigned int address, unsigned char data)
     {
       /* average Z80 wait-states when accessing 68k area */
       Z80.cycles += 3 * 15;
+
       address = zbank | (address & 0x7FFF);
       if (zbank_memory_map[address >> 16].write)
       {

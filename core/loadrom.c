@@ -419,7 +419,7 @@ int load_bios(int system)
         /* CD BOOTROM loaded ? */
         if (size > 0)
         {
-			/* auto-detect CD hardware model */
+          /* auto-detect CD hardware model */
           if (!memcmp (&scd.bootrom[0x120], "WONDER-MEGA BOOT", 16))
           {
             /* Wondermega CD hardware */
@@ -435,7 +435,7 @@ int load_bios(int system)
             /* default CD hardware */
             cdd.type = CD_TYPE_DEFAULT;
           }
-		  
+         
 #ifdef LSB_FIRST
           /* Byteswap ROM to optimize 16-bit access */
           int i;
