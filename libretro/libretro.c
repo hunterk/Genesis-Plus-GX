@@ -145,9 +145,9 @@ static bool restart_eq = false;
 
 static char g_rom_dir[256];
 static char g_rom_name[256];
-static void *g_rom_data;
-static size_t g_rom_size;
-static char *save_dir;
+static const void *g_rom_data = NULL;
+static size_t g_rom_size      = 0;
+static char *save_dir         = NULL;
 
 static retro_log_printf_t log_cb;
 static retro_video_refresh_t video_cb;
@@ -2797,13 +2797,9 @@ void retro_set_environment(retro_environment_t cb)
 
    static const struct retro_system_content_info_override content_overrides[] = {
       {
-         "mdx|md|bin|smd|gen|bms|sms|gg|sg|68k|sgd", /* extensions */
-#if defined(LOW_MEMORY)
-         true,                                   /* need_fullpath */
-#else
-         false,                                  /* need_fullpath */
-#endif
-         false                                   /* persistent_data */
+         "mdx|md|smd|gen|bms|sms|gg|sg", /* extensions */
+         false,                          /* need_fullpath */
+         false                           /* persistent_data */
       },
       { NULL, false, false }
    };
@@ -2814,6 +2810,7 @@ void retro_set_environment(retro_environment_t cb)
 
    cb(RETRO_ENVIRONMENT_SET_CONTROLLER_INFO, (void*)ports);
    cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, (void*)desc);
+   cb(RETRO_ENVIRONMENT_SET_CONTENT_INFO_OVERRIDE, (void*)content_overrides);
 
    vfs_iface_info.required_interface_version = 1;
    vfs_iface_info.iface                      = NULL;
@@ -3120,15 +3117,68 @@ bool retro_load_game(const struct retro_game_info *info)
 #else
    char slash      = '/';
 #endif
-   struct retro_game_info_ext *info_ext = NULL;
+   const struct retro_game_info_ext *info_ext = NULL;
    char content_path[256];
    char content_ext[8];
 
-   if (!info)
-      return false;
-  
-   if (!info->path)
-      return false;
+   content_path[0] = '\0';
+   content_ext[0]  = '\0';
+
+   /* Attempt to fetch extended game info */
+   if (environ_cb(RETRO_ENVIRONMENT_GET_GAME_INFO_EXT, &info_ext))
+   {
+      g_rom_data = (const void *)info_ext->data;
+      g_rom_size = info_ext->size;
+
+      strncpy(g_rom_dir, info_ext->dir, sizeof(g_rom_dir));
+      g_rom_dir[sizeof(g_rom_dir) - 1] = '\0';
+
+      strncpy(g_rom_name, info_ext->name, sizeof(g_rom_name));
+      g_rom_name[sizeof(g_rom_name) - 1] = '\0';
+
+      strncpy(content_ext, info_ext->ext, sizeof(content_ext));
+      content_ext[sizeof(content_ext) - 1] = '\0';
+
+      if (info_ext->file_in_archive)
+      {
+         /* We don't have a 'physical' file in this
+          * case, but the core still needs a filename
+          * in order to detect associated content
+          * (Mega CD Mode 1/MegaSD MD+ mode). We therefore
+          * fake it, using the content directory,
+          * canonical content name, and content file
+          * extension */
+         snprintf(content_path, sizeof(content_path), "%s%c%s.%s",
+               g_rom_dir, slash, g_rom_name, content_ext);
+      }
+      else
+      {
+         strncpy(content_path, info_ext->full_path, sizeof(content_path));
+         content_path[sizeof(content_path) - 1] = '\0';
+      }
+   }
+   else
+   {
+      const char *ext = NULL;
+
+      if (!info || !info->path)
+         return false;
+
+      g_rom_data = NULL;
+      g_rom_size = 0;
+
+      extract_directory(g_rom_dir, info->path, sizeof(g_rom_dir));
+      extract_name(g_rom_name, info->path, sizeof(g_rom_name));
+
+      strncpy(content_path, info->path, sizeof(content_path));
+      content_path[sizeof(content_path) - 1] = '\0';
+
+      if (ext = strrchr(info->path, '.'))
+      {
+         strncpy(content_ext, ext + 1, sizeof(content_ext));
+         content_ext[sizeof(content_ext) - 1] = '\0';
+      }
+   }
 
 #ifdef FRONTEND_SUPPORTS_RGB565
    {
@@ -3194,9 +3244,6 @@ bool retro_load_game(const struct retro_game_info *info)
       log_cb(RETRO_LOG_INFO, "Sega/Mega CD RAM CART is located at: %s\n", CART_BRAM);
    }
 
-   g_rom_data = info->data;
-   g_rom_data = (void *)info->data;
-
    /* Clear disk interface (already done in retro_unload_game but better be safe) */
    disk_count = 0;
    disk_index = 0;
@@ -3210,9 +3257,9 @@ bool retro_load_game(const struct retro_game_info *info)
    }
 
    /* M3U file list support */
-   if ((strlen(info->path) > 4) && !strncmp(info->path + strlen(info->path) - 4, ".m3u", 4))
+   if (!strcmp(content_ext, "m3u"))
    {
-      RFILE *fd = filestream_open(info->path, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
+      RFILE *fd = filestream_open(content_path, RETRO_VFS_FILE_ACCESS_READ, RETRO_VFS_FILE_ACCESS_HINT_NONE);
       if (fd)
       {
          int len;
@@ -3283,14 +3330,14 @@ bool retro_load_game(const struct retro_game_info *info)
    }
    else
    {
-      if (load_rom((char *)info->path) <= 0)
+      if (load_rom(content_path) <= 0)
          return false;
 
       /* automatically add loaded CD to disk interface */
       if ((system_hw == SYSTEM_MCD) && cdd.loaded)
       {
          disk_count = 1;
-         disk_info[0] = strdup(info->path);
+         disk_info[0] = strdup(content_path);
       }
    }
 
@@ -3487,6 +3534,9 @@ void retro_init(void)
 void retro_deinit(void)
 {
    libretro_supports_bitmasks = false;
+
+   g_rom_data = NULL;
+   g_rom_size = 0;
 }
 
 void retro_reset(void)
