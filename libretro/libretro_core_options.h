@@ -186,6 +186,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "NTSC PAR", NULL },
          { "PAL PAR",  NULL },
          { "4:3",  NULL },
+         { "Uncorrected",  NULL },
       },
       "auto"
    },
