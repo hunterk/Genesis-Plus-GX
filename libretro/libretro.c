@@ -226,6 +226,30 @@ static void retro_audio_buff_status_cb(
    retro_audio_buff_underrun  = underrun_likely;
 }
 
+/* LED interface */
+static retro_set_led_state_t led_state_cb = NULL;
+static unsigned int retro_led_state[2] = {0};
+static void retro_led_interface(void)
+{
+   /* 0: Power
+    * 1: CD */
+
+   unsigned int led_state[2] = {0};
+   unsigned int l            = 0;
+
+   led_state[0] = (zstate) ? 1 : 0;
+   led_state[1] = (scd.regs[0x06 >> 1].byte.h & 1) ? 1 : 0;
+
+   for (l = 0; l < sizeof(led_state)/sizeof(led_state[0]); l++)
+   {
+      if (retro_led_state[l] != led_state[l])
+      {
+         retro_led_state[l] = led_state[l];
+         led_state_cb(l, led_state[l]);
+      }
+   }
+}
+
 static void init_frameskip(void)
 {
    if (frameskip_type > 0)
@@ -2642,49 +2666,7 @@ void retro_set_environment(retro_environment_t cb)
 {
    bool option_categories = false;
    struct retro_vfs_interface_info vfs_iface_info;
-   static const struct retro_variable vars[] = {
-      { "genesis_plus_gx_system_hw", "System hardware; auto|sg-1000|sg-1000 II|mark-III|master system|master system II|game gear|mega drive / genesis" },
-      { "genesis_plus_gx_region_detect", "System region; auto|ntsc-u|pal|ntsc-j" },
-      { "genesis_plus_gx_force_dtack", "System lockups; enabled|disabled" },
-      { "genesis_plus_gx_bios", "System bootrom; disabled|enabled" },
-      { "genesis_plus_gx_bram", "CD System BRAM; per bios|per game" },
-      { "genesis_plus_gx_addr_error", "68k address error; enabled|disabled" },
-      { "genesis_plus_gx_lock_on", "Cartridge lock-on; disabled|game genie|action replay (pro)|sonic & knuckles" },
-      { "genesis_plus_gx_ym2413", "Master System FM (YM2413); auto|disabled|enabled" },
-#ifdef HAVE_OPLL_CORE
-      { "genesis_plus_gx_ym2413_core", "Master System FM (YM2413) core; mame|nuked" },
-#endif
-#ifdef HAVE_YM3438_CORE
-      { "genesis_plus_gx_ym2612", "Mega Drive / Genesis FM; mame (ym2612)|mame (asic ym3438)|mame (enhanced ym3438)|nuked (ym2612)|nuked (ym3438)" },
-#else
-      { "genesis_plus_gx_ym2612", "Mega Drive / Genesis FM; mame (ym2612)|mame (asic ym3438)|mame (enhanced ym3438)" },
-#endif
-
-      { "genesis_plus_gx_sound_output", "Sound output; stereo|mono" },
-      { "genesis_plus_gx_audio_filter", "Audio filter; disabled|low-pass" },
-      { "genesis_plus_gx_lowpass_range", "Low-pass filter %; 60|65|70|75|80|85|90|95|5|10|15|20|25|30|35|40|45|50|55"},
-      
-      #if HAVE_EQ     
-      { "genesis_plus_gx_audio_eq_low",  "EQ Low;  100|0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95" },
-      { "genesis_plus_gx_audio_eq_mid",  "EQ Mid;  100|0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95" },
-      { "genesis_plus_gx_audio_eq_high", "EQ High; 100|0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95" },
-      #endif
-      
-      { "genesis_plus_gx_blargg_ntsc_filter", "Blargg NTSC filter; disabled|monochrome|composite|svideo|rgb" },
-      { "genesis_plus_gx_lcd_filter", "LCD Ghosting filter; disabled|enabled" },
-      { "genesis_plus_gx_overscan", "Borders; disabled|top/bottom|left/right|full" },
-      { "genesis_plus_gx_gg_extra", "Game Gear extended screen; disabled|enabled" },
-      { "genesis_plus_gx_left_border", "Hide Master System Side Borders; disabled|left border|left & right borders" },
-      { "genesis_plus_gx_aspect_ratio", "Core-provided aspect ratio; auto|NTSC PAR|PAL PAR" },
-      { "genesis_plus_gx_render", "Interlaced mode 2 output; single field|double field" },
-      { "genesis_plus_gx_gun_cursor", "Show Lightgun crosshair; disabled|enabled" },
-      { "genesis_plus_gx_invert_mouse", "Invert Mouse Y-axis; disabled|enabled" },
-#ifdef HAVE_OVERCLOCK
-      { "genesis_plus_gx_overclock", "CPU speed; 100%|125%|150%|175%|200%" },
-#endif
-      { "genesis_plus_gx_no_sprite_limit", "Remove per-line sprite limit; disabled|enabled" },
-      { NULL, NULL },
-   };
+   struct retro_led_interface led_interface;
 
    static const struct retro_controller_description port_1[] = {
       { "Joypad Auto", RETRO_DEVICE_JOYPAD },
@@ -2888,6 +2870,9 @@ void retro_set_environment(retro_environment_t cb)
    if (environ_cb(RETRO_ENVIRONMENT_GET_VFS_INTERFACE, &vfs_iface_info))
 	   filestream_vfs_init(&vfs_iface_info);
 
+   environ_cb(RETRO_ENVIRONMENT_GET_LED_INTERFACE, &led_interface);
+   if (led_interface.set_led_state)
+      led_state_cb = led_interface.set_led_state;
 }
 
 void retro_set_video_refresh(retro_video_refresh_t cb) { video_cb = cb; }
@@ -3782,6 +3767,9 @@ void retro_run(void)
 	   else
 		   vwoffset = (16 + (config.ntsc ? 24 : 0));
    }
+
+   /* LED interface */
+   retro_led_interface();
 
    if (!do_skip)
    {
