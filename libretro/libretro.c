@@ -1350,19 +1350,20 @@ static void check_variables(bool first_run)
   var.key = "genesis_plus_gx_cart_bram";
   environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var);
   {
-#if defined(_WIN32)
-    char slash = '\\';
-#else
-    char slash = '/';
-#endif
-
-   if (!var.value || !strcmp(var.value, "per cart"))
+   if (!var.value || !strcmp(var.value, "per bios"))
    {
-     snprintf(CART_BRAM, sizeof(CART_BRAM), "%s%ccart.brm", save_dir, slash);
+     fill_pathname_join(CD_BRAM_EU, save_dir, "scd_E.brm", sizeof(CD_BRAM_EU));
+     fill_pathname_join(CD_BRAM_US, save_dir, "scd_U.brm", sizeof(CD_BRAM_US));
+     fill_pathname_join(CD_BRAM_JP, save_dir, "scd_J.brm", sizeof(CD_BRAM_JP));
    }
    else
    {
-     snprintf(CART_BRAM, sizeof(CART_BRAM), "%s%c%s_cart.brm", save_dir, slash, g_rom_name);
+     char newpath[4096];
+     fill_pathname_join(newpath, save_dir, g_rom_name, sizeof(newpath));
+     strlcat(newpath, ".brm", sizeof(newpath));
+     strlcpy(CD_BRAM_EU, newpath, sizeof(CD_BRAM_EU));
+     strlcpy(CD_BRAM_US, newpath, sizeof(CD_BRAM_US));
+     strlcpy(CD_BRAM_JP, newpath, sizeof(CD_BRAM_JP));
    }
   }
 
@@ -3710,7 +3711,7 @@ void retro_run(void)
       }
    }
    
-   if ((config.left_border != 0) && (reg[0] & 0x20) && ((system_hw == SYSTEM_MARKIII) || (system_hw & SYSTEM_SMS) || (system_hw == SYSTEM_PBC)))
+   if ((config.left_border != 0) && (reg[0] & 0x20) && (bitmap.viewport.x == 0) && ((system_hw == SYSTEM_MARKIII) || (system_hw & SYSTEM_SMS) || (system_hw == SYSTEM_PBC)))
    {
 	   bmdoffset = (16 + (config.ntsc ? 24 : 0));
 	   if (config.left_border == 1)
