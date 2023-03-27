@@ -145,7 +145,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "disabled"
    },
    {
-      "genesis_plus_gx_bram",
+      "genesis_plus_gx_system_bram",
       "CD System BRAM",
       NULL,
       "When running Sega CD/Mega-CD content, specifies whether to share a single save file between all games from a specific region (Per-BIOS) or to create a separate save file for each game (Per-Game). Note that the Sega CD/Mega-CD has limited internal storage, sufficient only for a handful of titles. To avoid running out of space, the 'Per-Game' setting is recommended.",
@@ -157,6 +157,36 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { NULL, NULL },
       },
       "per bios"
+   },
+   {
+      "genesis_plus_gx_cart_bram",
+      "CD Backup Cart BRAM",
+      NULL,
+      "When running Sega CD/Mega-CD content, specifies whether to share a single backup ram cart for all games (Per-Cart) or to create a separate backup ram cart for each game (Per-Game).",
+      NULL,
+      "system",
+      {
+         { "per cart", "Per-Cart" },
+         { "per game", "Per-Game" },
+         { NULL, NULL },
+      },
+      "per cart"
+   },
+   {
+      "genesis_plus_gx_add_on",
+      "CD add-on (MD mode) (Requires Restart)",
+      NULL,
+      "Specify which add-on to use for CD audio playback with supported Mega Drive/Genesis games.",
+      NULL,
+      "system",
+      {
+         { "auto",         "Auto" },
+         { "sega/mega cd", "Sega/Mega CD" },
+         { "megasd",       "MegaSD" },
+         { "none",         "None" },
+         { NULL, NULL },
+      },
+      "disabled"
    },
    {
       "genesis_plus_gx_lock_on",
