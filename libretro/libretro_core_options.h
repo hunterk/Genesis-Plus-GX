@@ -103,14 +103,15 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       NULL,
       "system",
       {
-         { "auto",                 "Auto"               },
-         { "sg-1000",              "SG-1000"            },
-         { "sg-1000 II",           "SG-1000 II"         },
-         { "mark-III",             "Mark III"           },
-         { "master system",        "Master System"      },
-         { "master system II",     "Master System II"   },
-         { "game gear",            "Game Gear"          },
-         { "mega drive / genesis", "Mega Drive/Genesis" },
+         { "auto",                 "Auto"                 },
+         { "sg-1000",              "SG-1000"              },
+         { "sg-1000 II",           "SG-1000 II"           },
+         { "sg-1000 II + ram ext.","SG-1000 II + RAM Ext."},
+         { "mark-III",             "Mark III"             },
+         { "master system",        "Master System"        },
+         { "master system II",     "Master System II"     },
+         { "game gear",            "Game Gear"            },
+         { "mega drive / genesis", "Mega Drive/Genesis"   },
          { NULL, NULL },
       },
       "auto"
@@ -127,6 +128,21 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "ntsc-u",  "NTSC-U" },
          { "pal",     "PAL"    },
          { "ntsc-j",  "NTSC-J" },
+         { NULL, NULL },
+      },
+      "auto"
+   },
+   {
+      "genesis_plus_gx_vdp_mode",
+      "Force VDP Mode",
+      NULL,
+      "Overrides the VDP mode to force it to run at either 60Hz (NTSC) or 50Hz (PAL), regardless of system region.",
+      NULL,
+      "system",
+      {
+         { "auto",  "Disabled" },
+         { "60hz",  "60Hz" },
+         { "50hz",  "50Hz" },
          { NULL, NULL },
       },
       "auto"
@@ -206,13 +222,13 @@ struct retro_core_option_v2_definition option_defs_us[] = {
          { "none",         "None" },
          { NULL, NULL },
       },
-      "disabled"
+      "auto"
    },
    {
       "genesis_plus_gx_lock_on",
       "Cartridge Lock-On",
       NULL,
-      "Lock-On Technology is a Genesis feature that allowed an older game to connect to the pass-through port of a special cartridge for extended or altered gameplay. This option specifies which type of special 'lock-on' cartridge to emulate. A corresponding bios file must be present in RetroArch's system directory.",
+      "Lock-On Technology is a Mega Drive/Genesis feature that allowed an older game to connect to the pass-through port of a special cartridge for extended or altered gameplay. This option specifies which type of special 'lock-on' cartridge to emulate. A corresponding bios file must be present in RetroArch's system directory.",
       NULL,
       "system",
       {
@@ -265,8 +281,8 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "video",
       {
          { "disabled", NULL },
-		 { "left border", "Left Border Only" },
-		 { "left & right borders", "Left & Right Borders" },
+         { "left border", "Left Border Only" },
+         { "left & right borders", "Left & Right Borders" },
          { NULL, NULL },
       },
       "disabled"
@@ -388,6 +404,22 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       },
       "auto"
    },
+#ifdef HAVE_OPLL_CORE
+   {
+      "genesis_plus_gx_ym2413_core",
+      "Master System FM (YM2413) Core",
+      NULL,
+      "Select method used to emulate the FM Sound Unit of the Sega Mark III/Master System. 'MAME' option is fast, and runs full speed on most systems. 'Nuked' option is cycle accurate, very high quality, and has substantial CPU requirements.",
+      NULL,
+      "audio",
+      {
+         { "mame",  "MAME" },
+         { "nuked", "Nuked" },
+         { NULL, NULL },
+      },
+      "mame"
+   },
+#endif
    {
       "genesis_plus_gx_ym2612",
       "Mega Drive/Genesis FM",
@@ -429,7 +461,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "genesis_plus_gx_audio_filter",
       "Audio Filter",
       NULL,
-      "Enable a low pass audio filter to better simulate the characteristic sound of a Model 1 Genesis.",
+      "Enable a low pass audio filter to better simulate the characteristic sound of a Model 1 Mega Drive/Genesis.",
       NULL,
       "audio",
       {
@@ -477,7 +509,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "genesis_plus_gx_psg_preamp",
       "PSG Preamp Level",
       NULL,
-      "Set the audio preamplifier level of the emulated SN76496 4-channel Programmable Sound Generator found in the Master System, Game Gear and Genesis.",
+      "Set the audio preamplifier level of the emulated SN76496 4-channel Programmable Sound Generator found in the SG-1000, Sega Mark III, Master System, Game Gear and Mega Drive/Genesis.",
       NULL,
       "audio",
       {
@@ -792,7 +824,7 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "genesis_plus_gx_no_sprite_limit",
       "Remove Per-Line Sprite Limit",
       NULL,
-      "Removes the 8 (Master System) or 20 (Genesis) sprite-per-scanline hardware limit. This reduces flickering but can cause visual glitches, as some games exploit the hardware limit to generate special effects.",
+      "Removes the original sprite-per-scanline hardware limit. This reduces flickering but can cause visual glitches, as some games exploit the hardware limit to generate special effects.",
       NULL,
       "hacks",
       {
@@ -893,6 +925,20 @@ struct retro_core_option_v2_definition option_defs_us[] = {
       "68K Address Error",
       NULL,
       "The Mega Drive/Genesis main CPU (Motorola 68000) generates an Address Error exception (crash) when attempting to perform unaligned memory access. Enabling this will simulate this behavior. It should only be disabled when playing ROM hacks, since these are typically developed using less accurate emulators and may rely on invalid RAM access for correct operation.",
+      NULL,
+      "hacks",
+      {
+         { "enabled",  NULL },
+         { "disabled", NULL },
+         { NULL, NULL },
+      },
+      "enabled"
+   },
+   {
+      "genesis_plus_gx_cd_latency",
+      "CD access time",
+      NULL,
+        "Simulate original CD hardware latency when initiating a read or seeking to a specific location on loaded disc. This is required by a few CD games that crash if CD data is available too soon and also fixes CD audio desync issues in some games. Disabling this can be useful with MSU-MD games as it makes CD audio tracks loops more seamless.",
       NULL,
       "hacks",
       {
