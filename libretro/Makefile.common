@@ -23,11 +23,13 @@ ifeq ($(HOOK_CPU), 1)
 endif
 
 ifeq ($(HAVE_CHD), 1)
+   FLAGS += -D_7ZIP_ST -DZSTD_DISABLE_ASM
    INCFLAGS += \
                -I$(LIBRETRO_DEPS_DIR)/libchdr/include \
                -I$(LIBRETRO_DEPS_DIR)/lzma-19.00/include \
                -I$(LIBRETRO_DEPS_DIR)/zlib-1.2.11 \
                -I$(LIBRETRO_DEPS_DIR)/zstd/lib
+
    SOURCES_C += \
                 $(LIBRETRO_DEPS_DIR)/lzma-19.00/src/Alloc.c \
                 $(LIBRETRO_DEPS_DIR)/lzma-19.00/src/Bra86.c \
